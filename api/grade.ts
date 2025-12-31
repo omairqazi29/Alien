@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const BEDROCK_API_KEY = process.env.BEDROCK_API_KEY;
-const BEDROCK_REGION = process.env.AWS_REGION || 'us-east-2';
-const BEDROCK_ENDPOINT = `https://bedrock-runtime.${BEDROCK_REGION}.amazonaws.com`;
+const AWS_REGION = process.env.AWS_REGION || 'us-east-2';
+const BEDROCK_ENDPOINT = `https://bedrock-runtime.${AWS_REGION}.amazonaws.com`;
 
 interface GradeRequest {
   criteriaId: string;
@@ -91,16 +91,29 @@ Respond with a JSON object containing:
 
 JSON Response:`;
 
-    // Helper to call Bedrock API with API key
-    async function callBedrock(modelId: string, body: object): Promise<any> {
-      const response = await fetch(`${BEDROCK_ENDPOINT}/model/${modelId}/invoke`, {
+    // Helper to call Bedrock Converse API with API key
+    async function callBedrockConverse(modelId: string, systemPrompt: string, userMessage: string): Promise<string> {
+      const url = `${BEDROCK_ENDPOINT}/model/${modelId}/converse`;
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
           'Authorization': `Bearer ${BEDROCK_API_KEY}`,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          system: [{ text: systemPrompt }],
+          messages: [
+            {
+              role: 'user',
+              content: [{ text: userMessage }],
+            },
+          ],
+          inferenceConfig: {
+            maxTokens: 1024,
+            temperature: 0.7,
+          },
+        }),
       });
 
       if (!response.ok) {
@@ -108,19 +121,18 @@ JSON Response:`;
         throw new Error(`Bedrock API error: ${response.status} - ${errorText}`);
       }
 
-      return response.json();
+      const responseBody = await response.json();
+      // Converse API returns: { output: { message: { content: [{ text: "..." }] } } }
+      return responseBody.output?.message?.content?.[0]?.text || '';
     }
 
     // Grade with Claude Sonnet via Bedrock
     async function gradeWithClaude(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
-      const responseBody = await callBedrock('anthropic.claude-3-5-sonnet-20241022-v2:0', {
-        anthropic_version: 'bedrock-2023-05-31',
-        max_tokens: 1024,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: userPrompt }],
-      });
-
-      const textContent = responseBody.content?.[0]?.text || '';
+      const textContent = await callBedrockConverse(
+        'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+        SYSTEM_PROMPT,
+        userPrompt
+      );
 
       const jsonMatch = textContent.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error('Failed to parse Claude response');
@@ -133,15 +145,11 @@ JSON Response:`;
 
     // Grade with Meta Llama via Bedrock
     async function gradeWithLlama(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
-      const llamaPrompt = `${SYSTEM_PROMPT}\n\n${userPrompt}`;
-
-      const responseBody = await callBedrock('meta.llama3-70b-instruct-v1:0', {
-        prompt: llamaPrompt,
-        max_gen_len: 1024,
-        temperature: 0.7,
-      });
-
-      const textContent = responseBody.generation || '';
+      const textContent = await callBedrockConverse(
+        'us.meta.llama3-3-70b-instruct-v1:0',
+        SYSTEM_PROMPT,
+        userPrompt
+      );
 
       const jsonMatch = textContent.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error('Failed to parse Llama response');
@@ -149,7 +157,7 @@ JSON Response:`;
       const gradeResult: SingleGradeResponse = JSON.parse(jsonMatch[0]);
       validateGrade(gradeResult);
 
-      return { model: 'llama3-70b', modelName: 'Meta Llama 3 70B', ...gradeResult };
+      return { model: 'llama3-70b', modelName: 'Meta Llama 3.3 70B', ...gradeResult };
     }
 
     function validateGrade(result: SingleGradeResponse) {
@@ -170,6 +178,20 @@ JSON Response:`;
     return res.status(200).json({ grades: [claudeGrade, llamaGrade] });
   } catch (error) {
     console.error('Grading error:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+
+    // More detailed error response for debugging
+    const errorDetails = {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      name: error instanceof Error ? error.name : 'UnknownError',
+      bedrockEndpoint: BEDROCK_ENDPOINT,
+      region: AWS_REGION,
+      hasApiKey: !!BEDROCK_API_KEY,
+      apiKeyLength: BEDROCK_API_KEY?.length || 0,
+    };
+
+    console.error('Error details:', JSON.stringify(errorDetails, null, 2));
+
     return res.status(500).json({
       error: 'Failed to grade evidence',
       details: error instanceof Error ? error.message : 'Unknown error'
