@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TaskCard } from '../components/TaskCard';
+import { EditTaskModal } from '../components/EditTaskModal';
 import { useTasks } from '../hooks/useData';
 import { useGitHubConfig } from '../hooks/useGitHub';
 import { EB1A_CRITERIA } from '../types';
@@ -13,6 +14,7 @@ export function AllTasks() {
   const { repos } = useGitHubConfig();
   const [filter, setFilter] = useState<'all' | TaskStatus>('all');
   const [syncingTasks, setSyncingTasks] = useState<Set<string>>(new Set());
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   // Get stars target for a task based on its connected repo
   const getStarsTarget = (repoFullName?: string): number | undefined => {
@@ -212,6 +214,7 @@ export function AllTasks() {
                     task={task}
                     onStatusChange={(status) => handleStatusChange(task.id, status)}
                     onSync={task.type === 'sync' ? () => handleSync(task.id) : undefined}
+                    onEdit={() => setEditingTask(task)}
                     onDelete={() => handleDeleteTask(task.id)}
                     isSyncing={syncingTasks.has(task.id)}
                     starsTarget={getStarsTarget(task.sync_config?.repository)}
@@ -222,6 +225,17 @@ export function AllTasks() {
           ))}
         </div>
       )}
+
+      <EditTaskModal
+        open={!!editingTask}
+        task={editingTask}
+        onClose={() => setEditingTask(null)}
+        onSave={(updates) => {
+          if (editingTask) {
+            updateTask(editingTask.id, updates);
+          }
+        }}
+      />
     </div>
   );
 }

@@ -1,10 +1,11 @@
-import { Check, RefreshCw, Trash2, Circle, Clock, AlertCircle } from 'lucide-react';
+import { Check, RefreshCw, Trash2, Circle, Clock, AlertCircle, Pencil } from 'lucide-react';
 import type { Task, TaskStatus } from '../types';
 
 interface TaskCardProps {
   task: Task;
   onStatusChange: (status: TaskStatus) => void;
   onSync?: () => void;
+  onEdit: () => void;
   onDelete: () => void;
   isSyncing?: boolean;
   starsTarget?: number;
@@ -17,7 +18,7 @@ const statusConfig: Record<TaskStatus, { icon: React.ElementType; color: string;
   blocked: { icon: AlertCircle, color: 'text-red-400', bg: 'bg-red-400' },
 };
 
-export function TaskCard({ task, onStatusChange, onSync, onDelete, isSyncing, starsTarget }: TaskCardProps) {
+export function TaskCard({ task, onStatusChange, onSync, onEdit, onDelete, isSyncing, starsTarget }: TaskCardProps) {
   const config = statusConfig[task.status];
   const StatusIcon = config.icon;
 
@@ -110,6 +111,13 @@ export function TaskCard({ task, onStatusChange, onSync, onDelete, isSyncing, st
               <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
             </button>
           )}
+          <button
+            onClick={onEdit}
+            className="p-2 text-gray-400 hover:text-emerald-400 hover:bg-gray-700 rounded-lg transition-colors"
+            title="Edit task"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
           <button
             onClick={onDelete}
             className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-lg transition-colors"

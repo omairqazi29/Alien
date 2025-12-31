@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus } from 'lucide-react';
 import { TaskCard } from '../components/TaskCard';
 import { AddTaskModal } from '../components/AddTaskModal';
+import { EditTaskModal } from '../components/EditTaskModal';
 import { AIGrader } from '../components/AIGrader';
 import { EvidenceEditor } from '../components/EvidenceEditor';
 import { PolicyGuidance } from '../components/PolicyGuidance';
@@ -10,7 +11,7 @@ import { useTasks, useGrade, useEvidence } from '../hooks/useData';
 import { useGitHubConfig } from '../hooks/useGitHub';
 import { EB1A_CRITERIA } from '../types';
 import { github } from '../lib/github';
-import type { TaskStatus, CriteriaId, AIGrade } from '../types';
+import type { Task, TaskStatus, CriteriaId, AIGrade } from '../types';
 
 export function CriteriaDetail() {
   const { id } = useParams<{ id: string }>();
@@ -21,6 +22,7 @@ export function CriteriaDetail() {
   const { repos } = useGitHubConfig();
   const [evidenceContent, setEvidenceContent] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [syncingTasks, setSyncingTasks] = useState<Set<string>>(new Set());
 
   const criteria = EB1A_CRITERIA.find(c => c.id === id);
@@ -237,6 +239,7 @@ export function CriteriaDetail() {
               task={task}
               onStatusChange={(status) => handleStatusChange(task.id, status)}
               onSync={task.type === 'sync' ? () => handleSync(task.id) : undefined}
+              onEdit={() => setEditingTask(task)}
               onDelete={() => handleDeleteTask(task.id)}
               isSyncing={syncingTasks.has(task.id)}
               starsTarget={getStarsTarget(task.sync_config?.repository)}
@@ -249,6 +252,17 @@ export function CriteriaDetail() {
         open={showAddModal}
         onClose={() => setShowAddModal(false)}
         onAdd={handleAddTask}
+      />
+
+      <EditTaskModal
+        open={!!editingTask}
+        task={editingTask}
+        onClose={() => setEditingTask(null)}
+        onSave={(updates) => {
+          if (editingTask) {
+            updateTask(editingTask.id, updates);
+          }
+        }}
       />
     </div>
   );
