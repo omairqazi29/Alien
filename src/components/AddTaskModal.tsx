@@ -8,6 +8,7 @@ interface AddTaskModalProps {
     title: string;
     description: string;
     type: TaskType;
+    exhibit?: string;
     sync_source?: SyncSource;
     sync_config?: Record<string, string>;
   }) => void;
@@ -24,6 +25,7 @@ const SYNC_SOURCES: { value: SyncSource; label: string; configFields: string[] }
 export function AddTaskModal({ onClose, onAdd }: AddTaskModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [exhibit, setExhibit] = useState('');
   const [type, setType] = useState<TaskType>('manual');
   const [syncSource, setSyncSource] = useState<SyncSource>('github_stars');
   const [syncConfig, setSyncConfig] = useState<Record<string, string>>({});
@@ -35,6 +37,7 @@ export function AddTaskModal({ onClose, onAdd }: AddTaskModalProps) {
     onAdd({
       title: title.trim(),
       description: description.trim(),
+      exhibit: exhibit.trim() || undefined,
       type,
       ...(type === 'sync' && {
         sync_source: syncSource,
@@ -74,17 +77,31 @@ export function AddTaskModal({ onClose, onAdd }: AddTaskModalProps) {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Description
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 resize-none"
-              placeholder="Optional details about this task..."
-            />
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Description
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 resize-none"
+                placeholder="Optional details..."
+              />
+            </div>
+            <div className="w-24">
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Exhibit
+              </label>
+              <input
+                type="text"
+                value={exhibit}
+                onChange={(e) => setExhibit(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
+                placeholder="A-1"
+              />
+            </div>
           </div>
 
           <div>

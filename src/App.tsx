@@ -7,6 +7,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Criteria } from './pages/Criteria';
 import { CriteriaDetail } from './pages/CriteriaDetail';
 import { AllTasks } from './pages/AllTasks';
+import { Settings } from './pages/Settings';
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
             <Route path="criteria" element={<Criteria />} />
             <Route path="criteria/:id" element={<CriteriaDetail />} />
             <Route path="tasks" element={<AllTasks />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>
       </BrowserRouter>

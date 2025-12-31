@@ -45,6 +45,7 @@ export interface Task {
   sync_config?: Record<string, string>;
   status: TaskStatus;
   evidence?: string;
+  exhibit?: string; // e.g., "A-1", "B-2" for petition reference
   last_synced?: string;
   created_at: string;
   updated_at: string;

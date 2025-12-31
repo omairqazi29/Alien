@@ -40,6 +40,11 @@ export function TaskCard({ task, onStatusChange, onSync, onDelete, isSyncing }: 
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
+            {task.exhibit && (
+              <span className="px-1.5 py-0.5 text-xs bg-amber-500/20 text-amber-400 rounded font-mono">
+                {task.exhibit}
+              </span>
+            )}
             <h4 className="font-medium text-white truncate">{task.title}</h4>
             {task.type === 'sync' && (
               <span className="px-2 py-0.5 text-xs bg-blue-500/20 text-blue-400 rounded-full">

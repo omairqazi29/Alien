@@ -1,11 +1,12 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Rocket, LayoutDashboard, Target, ListTodo, LogOut } from 'lucide-react';
+import { Rocket, LayoutDashboard, Target, ListTodo, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/criteria', icon: Target, label: 'Criteria' },
   { to: '/tasks', icon: ListTodo, label: 'All Tasks' },
+  { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
 export function Layout() {

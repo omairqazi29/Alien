@@ -48,6 +48,7 @@ export function CriteriaDetail() {
     title: string;
     description: string;
     type: 'manual' | 'sync';
+    exhibit?: string;
     sync_source?: any;
     sync_config?: Record<string, string>;
   }) => {
@@ -56,6 +57,7 @@ export function CriteriaDetail() {
       title: taskData.title,
       description: taskData.description,
       type: taskData.type,
+      exhibit: taskData.exhibit,
       sync_source: taskData.sync_source,
       sync_config: taskData.sync_config,
       status: 'not_started',
