@@ -164,23 +164,6 @@ JSON Response:`;
       return { model: 'claude-sonnet-4-5', modelName: 'Claude Sonnet 4.5', ...gradeResult };
     }
 
-    // Grade with Claude Sonnet 3.5 via Bedrock
-    async function gradeWithClaudeSonnet35(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
-      const textContent = await callBedrockConverse(
-        'anthropic.claude-3-5-sonnet-20240620-v1:0',
-        SYSTEM_PROMPT,
-        userPrompt
-      );
-
-      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Failed to parse Claude Sonnet 3.5 response');
-
-      const gradeResult: SingleGradeResponse = JSON.parse(jsonMatch[0]);
-      validateGrade(gradeResult);
-
-      return { model: 'claude-sonnet-3-5', modelName: 'Claude Sonnet 3.5', ...gradeResult };
-    }
-
     // Grade with Meta Llama via Bedrock
     async function gradeWithLlama(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
       const textContent = await callBedrockConverse(
@@ -196,6 +179,23 @@ JSON Response:`;
       validateGrade(gradeResult);
 
       return { model: 'llama3-70b', modelName: 'Meta Llama 3.3 70B', ...gradeResult };
+    }
+
+    // Grade with Claude 3.5 Sonnet via Bedrock (using cross-region inference profile)
+    async function gradeWithClaudeSonnet35(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
+      const textContent = await callBedrockConverse(
+        'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+        SYSTEM_PROMPT,
+        userPrompt
+      );
+
+      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('Failed to parse Claude 3.5 Sonnet response');
+
+      const gradeResult: SingleGradeResponse = JSON.parse(jsonMatch[0]);
+      validateGrade(gradeResult);
+
+      return { model: 'claude-3-5-sonnet', modelName: 'Claude 3.5 Sonnet', ...gradeResult };
     }
 
     function validateGrade(result: SingleGradeResponse) {
