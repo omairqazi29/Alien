@@ -36,6 +36,7 @@ export function AllTasks() {
     setSyncingTasks(prev => new Set(prev).add(taskId));
 
     let evidence = '';
+    let shouldComplete = false;
     try {
       switch (task.sync_source) {
         case 'github_stars': {
@@ -44,6 +45,9 @@ export function AllTasks() {
             const [owner, repo] = repoFullName.split('/');
             const metrics = await github.getRepoMetrics(owner, repo);
             evidence = `Repository has ${metrics.stars.toLocaleString()} stars`;
+            // Check if target is met
+            const target = getStarsTarget(repoFullName);
+            shouldComplete = target ? metrics.stars >= target : false;
           } else {
             evidence = 'No repository configured';
           }
@@ -62,10 +66,13 @@ export function AllTasks() {
       evidence = `Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
 
+    // Only mark as completed if target is met, otherwise mark as in_progress
+    const newStatus = shouldComplete ? 'completed' : 'in_progress';
+
     updateTask(taskId, {
       evidence,
       last_synced: new Date().toISOString(),
-      status: 'completed',
+      status: newStatus,
     });
 
     setSyncingTasks(prev => {
