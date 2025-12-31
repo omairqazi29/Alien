@@ -129,7 +129,7 @@ JSON Response:`;
     // Grade with Claude Sonnet via Bedrock
     async function gradeWithClaude(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
       const textContent = await callBedrockConverse(
-        'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+        'us.anthropic.claude-sonnet-4-5-20250514-v1:0',
         SYSTEM_PROMPT,
         userPrompt
       );
@@ -140,7 +140,7 @@ JSON Response:`;
       const gradeResult: SingleGradeResponse = JSON.parse(jsonMatch[0]);
       validateGrade(gradeResult);
 
-      return { model: 'claude-3-5-sonnet', modelName: 'Claude 3.5 Sonnet', ...gradeResult };
+      return { model: 'claude-sonnet-4-5', modelName: 'Claude Sonnet 4.5', ...gradeResult };
     }
 
     // Grade with Meta Llama via Bedrock
