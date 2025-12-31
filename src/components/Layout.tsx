@@ -33,8 +33,7 @@ export function Layout() {
               <div className="p-1.5 bg-emerald-500/20 rounded-lg">
                 <Rocket className="w-6 h-6 text-emerald-400" />
               </div>
-              <span className="text-lg font-bold text-white hidden sm:block">The Alien Project</span>
-              <span className="text-lg font-bold text-white sm:hidden">Alien</span>
+              <span className="text-lg font-bold text-white">The Alien Project</span>
             </div>
 
             {/* Desktop Navigation */}
