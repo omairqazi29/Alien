@@ -130,40 +130,6 @@ JSON Response:`;
       return responseBody.output?.message?.content?.[0]?.text || '';
     }
 
-    // Grade with Claude Opus 4 via Bedrock (using cross-region inference profile)
-    async function gradeWithClaudeOpus(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
-      const textContent = await callBedrockConverse(
-        'us.anthropic.claude-opus-4-20250514-v1:0',
-        SYSTEM_PROMPT,
-        userPrompt
-      );
-
-      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Failed to parse Claude Opus response');
-
-      const gradeResult: SingleGradeResponse = JSON.parse(jsonMatch[0]);
-      validateGrade(gradeResult);
-
-      return { model: 'claude-opus-4', modelName: 'Claude Opus 4', ...gradeResult };
-    }
-
-    // Grade with Claude Sonnet 4.5 via Bedrock
-    async function gradeWithClaudeSonnet45(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
-      const textContent = await callBedrockConverse(
-        'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
-        SYSTEM_PROMPT,
-        userPrompt
-      );
-
-      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Failed to parse Claude Sonnet 4.5 response');
-
-      const gradeResult: SingleGradeResponse = JSON.parse(jsonMatch[0]);
-      validateGrade(gradeResult);
-
-      return { model: 'claude-sonnet-4-5', modelName: 'Claude Sonnet 4.5', ...gradeResult };
-    }
-
     // Grade with Meta Llama via Bedrock
     async function gradeWithLlama(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
       const textContent = await callBedrockConverse(
@@ -208,14 +174,12 @@ JSON Response:`;
     }
 
     // Run all models in parallel
-    const [opusGrade, sonnet45Grade, sonnet35Grade, llamaGrade] = await Promise.all([
-      gradeWithClaudeOpus(),
-      gradeWithClaudeSonnet45(),
+    const [sonnet35Grade, llamaGrade] = await Promise.all([
       gradeWithClaudeSonnet35(),
       gradeWithLlama(),
     ]);
 
-    return res.status(200).json({ grades: [opusGrade, sonnet45Grade, sonnet35Grade, llamaGrade] });
+    return res.status(200).json({ grades: [sonnet35Grade, llamaGrade] });
   } catch (error) {
     console.error('Grading error:', error);
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
