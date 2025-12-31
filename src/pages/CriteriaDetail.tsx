@@ -4,6 +4,7 @@ import { ArrowLeft, Plus } from 'lucide-react';
 import { TaskCard } from '../components/TaskCard';
 import { AddTaskModal } from '../components/AddTaskModal';
 import { AIGrader } from '../components/AIGrader';
+import { EvidenceEditor } from '../components/EvidenceEditor';
 import { storage, generateId } from '../lib/storage';
 import { EB1A_CRITERIA } from '../types';
 import type { Task, TaskStatus, CriteriaId, AIGrade } from '../types';
@@ -160,6 +161,14 @@ export function CriteriaDetail() {
             style={{ width: tasks.length > 0 ? `${(completedCount / tasks.length) * 100}%` : '0%' }}
           />
         </div>
+      </div>
+
+      {/* Evidence Documentation */}
+      <div className="mb-6">
+        <EvidenceEditor
+          criteriaId={id as CriteriaId}
+          criteriaName={criteria.name}
+        />
       </div>
 
       {/* AI Grader */}

@@ -58,6 +58,7 @@ export interface AIGrade {
 export interface UserProfile {
   id: string;
   selected_criteria: CriteriaId[];
+  criteria_evidence: Record<CriteriaId, string>; // markdown content per criterion
   created_at: string;
   updated_at: string;
 }

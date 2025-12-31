@@ -4,6 +4,7 @@ const STORAGE_KEYS = {
   SELECTED_CRITERIA: 'alien_selected_criteria',
   TASKS: 'alien_tasks',
   GRADES: 'alien_grades',
+  EVIDENCE: 'alien_evidence',
 };
 
 export const storage = {
@@ -66,6 +67,23 @@ export const storage = {
     const grades = storage.getGrades().filter(g => g.criteria_id !== grade.criteria_id);
     grades.push(grade);
     storage.setGrades(grades);
+  },
+
+  // Evidence content (markdown) per criteria
+  getAllEvidence: (): Record<string, string> => {
+    const stored = localStorage.getItem(STORAGE_KEYS.EVIDENCE);
+    return stored ? JSON.parse(stored) : {};
+  },
+
+  getEvidence: (criteriaId: CriteriaId): string => {
+    const all = storage.getAllEvidence();
+    return all[criteriaId] || '';
+  },
+
+  setEvidence: (criteriaId: CriteriaId, content: string): void => {
+    const all = storage.getAllEvidence();
+    all[criteriaId] = content;
+    localStorage.setItem(STORAGE_KEYS.EVIDENCE, JSON.stringify(all));
   },
 };
 
