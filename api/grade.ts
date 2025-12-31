@@ -130,10 +130,10 @@ JSON Response:`;
       return responseBody.output?.message?.content?.[0]?.text || '';
     }
 
-    // Grade with Claude Opus 4 via Bedrock
+    // Grade with Claude Opus 4 via Bedrock (using cross-region inference profile)
     async function gradeWithClaudeOpus(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
       const textContent = await callBedrockConverse(
-        'anthropic.claude-opus-4-5-20251101-v1:0',
+        'us.anthropic.claude-opus-4-20250514-v1:0',
         SYSTEM_PROMPT,
         userPrompt
       );
