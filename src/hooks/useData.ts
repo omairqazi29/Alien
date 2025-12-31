@@ -106,29 +106,30 @@ export function useTasks(criteriaId?: CriteriaId) {
 // Hook for evidence
 export function useEvidence(criteriaId: CriteriaId) {
   const { user } = useAuth();
-  const [content, setContent] = useState('');
+  const [content, setContentState] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function load() {
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-      try {
-        const data = await db.getEvidence(user.id, criteriaId);
-        setContent(data);
-      } catch (error) {
-        console.error('Failed to load evidence:', error);
-      }
+  const loadEvidence = useCallback(async () => {
+    if (!user) {
       setLoading(false);
+      return;
     }
-    load();
+    try {
+      const data = await db.getEvidence(user.id, criteriaId);
+      setContentState(data);
+    } catch (error) {
+      console.error('Failed to load evidence:', error);
+    }
+    setLoading(false);
   }, [user, criteriaId]);
+
+  useEffect(() => {
+    loadEvidence();
+  }, [loadEvidence]);
 
   const saveEvidence = useCallback(async (newContent: string) => {
     if (!user) return;
-    setContent(newContent);
+    setContentState(newContent);
     try {
       await db.setEvidence(user.id, criteriaId, newContent);
     } catch (error) {
@@ -136,7 +137,7 @@ export function useEvidence(criteriaId: CriteriaId) {
     }
   }, [user, criteriaId]);
 
-  return { content, setContent: saveEvidence, loading };
+  return { content, setContent: saveEvidence, loading, reload: loadEvidence };
 }
 
 // Hook for AI grades

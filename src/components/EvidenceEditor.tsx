@@ -6,9 +6,10 @@ import type { CriteriaId, Exhibit } from '../types';
 interface EvidenceEditorProps {
   criteriaId: CriteriaId;
   criteriaName: string;
+  onSave?: (content: string) => void;
 }
 
-export function EvidenceEditor({ criteriaId, criteriaName }: EvidenceEditorProps) {
+export function EvidenceEditor({ criteriaId, criteriaName, onSave }: EvidenceEditorProps) {
   const { content, setContent: saveContent, loading } = useEvidence(criteriaId);
   const { assumeExists: assumeEvidenceExists, setAssumeExists: setAssumeEvidenceExists } = useAssumeEvidenceExists(criteriaId);
   const {
@@ -38,6 +39,7 @@ export function EvidenceEditor({ criteriaId, criteriaName }: EvidenceEditorProps
     saveContent(localContent);
     setIsSaved(true);
     setIsEditing(false);
+    onSave?.(localContent);
   };
 
   const handleChange = (value: string) => {

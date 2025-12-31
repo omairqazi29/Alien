@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus } from 'lucide-react';
 import { TaskCard } from '../components/TaskCard';
@@ -15,11 +15,19 @@ export function CriteriaDetail() {
   const navigate = useNavigate();
   const { tasks, loading: tasksLoading, addTask, updateTask, deleteTask } = useTasks(id as CriteriaId);
   const { grade, setGrade, loading: gradeLoading } = useGrade(id as CriteriaId);
-  const { content: evidenceContent } = useEvidence(id as CriteriaId);
+  const { content: initialEvidenceContent, loading: evidenceLoading } = useEvidence(id as CriteriaId);
+  const [evidenceContent, setEvidenceContent] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [syncingTasks, setSyncingTasks] = useState<Set<string>>(new Set());
 
   const criteria = EB1A_CRITERIA.find(c => c.id === id);
+
+  // Sync evidence content from DB on initial load
+  useEffect(() => {
+    if (!evidenceLoading && initialEvidenceContent) {
+      setEvidenceContent(initialEvidenceContent);
+    }
+  }, [evidenceLoading, initialEvidenceContent]);
 
   if (!criteria) {
     return (
@@ -37,7 +45,7 @@ export function CriteriaDetail() {
     );
   }
 
-  if (tasksLoading || gradeLoading) {
+  if (tasksLoading || gradeLoading || evidenceLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
@@ -159,6 +167,7 @@ export function CriteriaDetail() {
         <EvidenceEditor
           criteriaId={id as CriteriaId}
           criteriaName={criteria.name}
+          onSave={setEvidenceContent}
         />
       </div>
 

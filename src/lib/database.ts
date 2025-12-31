@@ -200,10 +200,34 @@ export const db = {
       console.error('Error fetching grade:', error);
       return null;
     }
+
+    // Handle backward compatibility: if no grades array, construct from old columns
+    if (!data.grades || data.grades.length === 0) {
+      if (data.grade && data.score !== undefined) {
+        data.grades = [{
+          model: 'legacy',
+          modelName: 'Legacy Grade',
+          grade: data.grade,
+          score: data.score,
+          feedback: data.feedback || '',
+          suggestions: data.suggestions || [],
+        }];
+      } else {
+        data.grades = [];
+      }
+    }
+
     return data as AIGrade;
   },
 
   async setGrade(userId: string, grade: Omit<AIGrade, 'id'>): Promise<void> {
+    // Calculate summary values from first grade for backward compatibility with old schema
+    const firstGrade = grade.grades[0];
+    const summaryGrade = firstGrade?.grade || 'moderate';
+    const summaryScore = firstGrade?.score || 50;
+    const summaryFeedback = firstGrade?.feedback || '';
+    const summarySuggestions = firstGrade?.suggestions || [];
+
     const { error } = await supabase
       .from('ai_grades')
       .upsert({
@@ -211,11 +235,19 @@ export const db = {
         criteria_id: grade.criteria_id,
         grades: grade.grades,
         graded_at: grade.graded_at,
+        // Keep old columns populated for backward compatibility
+        grade: summaryGrade,
+        score: summaryScore,
+        feedback: summaryFeedback,
+        suggestions: summarySuggestions,
       }, {
         onConflict: 'user_id,criteria_id'
       });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error saving grade:', error);
+      throw error;
+    }
   },
 
   // GitHub Integration
