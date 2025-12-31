@@ -173,3 +173,24 @@ export function useGrade(criteriaId: CriteriaId) {
 
   return { grade, setGrade: saveGrade, loading };
 }
+
+// Hook for criteria policy details (from DB)
+export function useCriteriaPolicy(criteriaId: CriteriaId) {
+  const [policyDetails, setPolicyDetails] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await db.getCriteriaPolicy(criteriaId);
+        setPolicyDetails(data);
+      } catch (error) {
+        console.error('Failed to load criteria policy:', error);
+      }
+      setLoading(false);
+    }
+    load();
+  }, [criteriaId]);
+
+  return { policyDetails, loading };
+}

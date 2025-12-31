@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Sparkles, AlertTriangle, CheckCircle, XCircle, HelpCircle } from 'lucide-react';
 import { gradeEvidence } from '../lib/ai';
+import { useCriteriaPolicy } from '../hooks/useData';
 import { Button, Alert, Card } from './ui';
 import type { AIGrade, CriteriaId, GradeLevel, Task, ModelGrade } from '../types';
 
@@ -67,13 +68,14 @@ function GradeCard({ grade }: { grade: ModelGrade }) {
 export function AIGrader({ criteriaId, tasks, evidenceContent, existingGrade, onGrade }: AIGraderProps) {
   const [isGrading, setIsGrading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { policyDetails } = useCriteriaPolicy(criteriaId);
 
   const handleGrade = async () => {
     setIsGrading(true);
     setError(null);
 
     try {
-      const result = await gradeEvidence(criteriaId, tasks, evidenceContent);
+      const result = await gradeEvidence(criteriaId, tasks, evidenceContent, policyDetails);
 
       const aiGrade: AIGrade = {
         id: `grade-${criteriaId}-${Date.now()}`,

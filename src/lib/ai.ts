@@ -5,6 +5,7 @@ interface GradeRequest {
   criteriaId: CriteriaId;
   criteriaName: string;
   criteriaDescription: string;
+  policyDetails?: string;
   tasks: Array<{
     title: string;
     description: string;
@@ -22,7 +23,8 @@ interface GradeResponse {
 export async function gradeEvidence(
   criteriaId: CriteriaId,
   tasks: Task[],
-  evidenceContent?: string
+  evidenceContent?: string,
+  policyDetails?: string
 ): Promise<GradeResponse> {
   const criteria = EB1A_CRITERIA.find(c => c.id === criteriaId);
 
@@ -34,6 +36,7 @@ export async function gradeEvidence(
     criteriaId,
     criteriaName: criteria.name,
     criteriaDescription: `${criteria.officialTitle}\n\n${criteria.description}\n\nKey Guidance: ${criteria.keyGuidance}`,
+    policyDetails,
     tasks: tasks.map(t => ({
       title: t.title,
       description: t.description,

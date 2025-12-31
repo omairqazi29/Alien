@@ -8,6 +8,7 @@ interface GradeRequest {
   criteriaId: string;
   criteriaName: string;
   criteriaDescription: string;
+  policyDetails?: string;
   tasks: Array<{
     title: string;
     description: string;
@@ -58,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { criteriaId, criteriaName, criteriaDescription, tasks, evidenceContent } = req.body as GradeRequest;
+    const { criteriaId, criteriaName, criteriaDescription, policyDetails, tasks, evidenceContent } = req.body as GradeRequest;
 
     const completedTasks = tasks.filter(t => t.status === 'completed');
 
@@ -67,6 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 **${criteriaName}** (ID: ${criteriaId})
 ${criteriaDescription}
 
+${policyDetails ? `## USCIS Policy Manual Guidance\n${policyDetails}\n` : ''}
 ## Evidence Submitted
 
 ### Tasks/Evidence Items (${completedTasks.length} completed out of ${tasks.length} total):
@@ -79,7 +81,7 @@ ${i + 1}. **${t.title}** [${t.status.toUpperCase()}]${t.exhibit ? ` (Exhibit ${t
 ${evidenceContent ? `### Additional Evidence Documentation:\n${evidenceContent}` : ''}
 
 ## Your Task
-Evaluate this evidence for the "${criteriaName}" criterion. Consider whether this evidence would convince a USCIS officer that the applicant has extraordinary ability at a national or international level.
+Evaluate this evidence for the "${criteriaName}" criterion. Consider whether this evidence would convince a USCIS officer that the applicant has extraordinary ability at a national or international level.${policyDetails ? ' Apply the USCIS Policy Manual guidance provided above in your assessment.' : ''}
 
 Respond with a JSON object containing:
 - "grade": one of "strong", "moderate", "weak", "insufficient"

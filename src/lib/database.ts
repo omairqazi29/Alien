@@ -271,4 +271,45 @@ export const db = {
 
     return { updated: tasksToUpdate.length, tasks: tasksToUpdate };
   },
+
+  // Criteria Policy Details
+  async getCriteriaPolicy(criteriaId: CriteriaId): Promise<string> {
+    const { data, error } = await supabase
+      .from('criteria_policy')
+      .select('policy_details')
+      .eq('criteria_id', criteriaId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching criteria policy:', error);
+      return '';
+    }
+    return data?.policy_details || '';
+  },
+
+  async getAllCriteriaPolicies(): Promise<Record<CriteriaId, string>> {
+    const { data, error } = await supabase
+      .from('criteria_policy')
+      .select('criteria_id, policy_details');
+
+    if (error) {
+      console.error('Error fetching all criteria policies:', error);
+      return {} as Record<CriteriaId, string>;
+    }
+
+    const policies: Record<string, string> = {};
+    for (const row of data || []) {
+      policies[row.criteria_id] = row.policy_details || '';
+    }
+    return policies as Record<CriteriaId, string>;
+  },
+
+  async setCriteriaPolicy(criteriaId: CriteriaId, policyDetails: string): Promise<void> {
+    const { error } = await supabase
+      .from('criteria_policy')
+      .update({ policy_details: policyDetails })
+      .eq('criteria_id', criteriaId);
+
+    if (error) throw error;
+  },
 };
