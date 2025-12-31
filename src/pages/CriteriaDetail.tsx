@@ -5,6 +5,7 @@ import { TaskCard } from '../components/TaskCard';
 import { AddTaskModal } from '../components/AddTaskModal';
 import { AIGrader } from '../components/AIGrader';
 import { EvidenceEditor } from '../components/EvidenceEditor';
+import { PolicyGuidance } from '../components/PolicyGuidance';
 import { storage, generateId } from '../lib/storage';
 import { EB1A_CRITERIA } from '../types';
 import type { Task, TaskStatus, CriteriaId, AIGrade } from '../types';
@@ -144,7 +145,12 @@ export function CriteriaDetail() {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white">{criteria.name}</h1>
-        <p className="text-gray-400 mt-1">{criteria.description}</p>
+        <p className="text-gray-400 mt-1">{criteria.officialTitle}</p>
+      </div>
+
+      {/* Policy Guidance */}
+      <div className="mb-6">
+        <PolicyGuidance criteria={criteria} />
       </div>
 
       {/* Progress */}

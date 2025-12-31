@@ -84,7 +84,7 @@ export function Criteria() {
 
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-white">{c.name}</h3>
-                  <p className="text-sm text-gray-400 mt-1">{c.description}</p>
+                  <p className="text-sm text-gray-400 mt-1 line-clamp-2">{c.officialTitle}</p>
 
                   {c.selected && (
                     <div className="mt-3">
