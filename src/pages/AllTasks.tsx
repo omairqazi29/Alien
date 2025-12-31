@@ -2,14 +2,24 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TaskCard } from '../components/TaskCard';
 import { useTasks } from '../hooks/useData';
+import { useGitHubConfig } from '../hooks/useGitHub';
 import { EB1A_CRITERIA } from '../types';
+import { github } from '../lib/github';
 import type { Task, TaskStatus, CriteriaId } from '../types';
 
 export function AllTasks() {
   const navigate = useNavigate();
   const { tasks, loading, updateTask, deleteTask } = useTasks();
+  const { repos } = useGitHubConfig();
   const [filter, setFilter] = useState<'all' | TaskStatus>('all');
   const [syncingTasks, setSyncingTasks] = useState<Set<string>>(new Set());
+
+  // Get stars target for a task based on its connected repo
+  const getStarsTarget = (repoFullName?: string): number | undefined => {
+    if (!repoFullName) return undefined;
+    const repo = repos.find(r => r.full_name === repoFullName);
+    return repo?.stars_threshold;
+  };
 
   const handleStatusChange = (taskId: string, status: TaskStatus) => {
     updateTask(taskId, { status });
@@ -24,21 +34,32 @@ export function AllTasks() {
     if (!task) return;
 
     setSyncingTasks(prev => new Set(prev).add(taskId));
-    await new Promise(resolve => setTimeout(resolve, 1500));
 
     let evidence = '';
-    switch (task.sync_source) {
-      case 'github_stars':
-        evidence = `Repository has ${Math.floor(Math.random() * 5000)} stars (simulated)`;
-        break;
-      case 'github_contributions':
-        evidence = `${Math.floor(Math.random() * 2000)} contributions in the last year (simulated)`;
-        break;
-      case 'google_scholar':
-        evidence = `${Math.floor(Math.random() * 500)} citations (simulated)`;
-        break;
-      default:
-        evidence = 'Data synced successfully (simulated)';
+    try {
+      switch (task.sync_source) {
+        case 'github_stars': {
+          const repoFullName = task.sync_config?.repository;
+          if (repoFullName) {
+            const [owner, repo] = repoFullName.split('/');
+            const metrics = await github.getRepoMetrics(owner, repo);
+            evidence = `Repository has ${metrics.stars.toLocaleString()} stars`;
+          } else {
+            evidence = 'No repository configured';
+          }
+          break;
+        }
+        case 'github_contributions':
+          evidence = `GitHub contributions (connect in Settings to sync)`;
+          break;
+        case 'google_scholar':
+          evidence = `Google Scholar citations (integration coming soon)`;
+          break;
+        default:
+          evidence = 'Data synced successfully';
+      }
+    } catch (error) {
+      evidence = `Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
 
     updateTask(taskId, {
@@ -94,6 +115,46 @@ export function AllTasks() {
         </p>
       </div>
 
+      {/* Progress Bar */}
+      {tasks.length > 0 && (
+        <div className="mb-6 bg-gray-800 rounded-lg p-4 border border-gray-700">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm font-medium text-gray-300">Overall Progress</span>
+            <span className="text-sm text-gray-400">
+              {statusCounts.completed} of {tasks.length} completed
+            </span>
+          </div>
+          <div className="h-3 bg-gray-700 rounded-full overflow-hidden flex">
+            {statusCounts.completed > 0 && (
+              <div
+                className="h-full bg-emerald-500 transition-all duration-300"
+                style={{ width: `${(statusCounts.completed / tasks.length) * 100}%` }}
+              />
+            )}
+            {statusCounts.in_progress > 0 && (
+              <div
+                className="h-full bg-yellow-500 transition-all duration-300"
+                style={{ width: `${(statusCounts.in_progress / tasks.length) * 100}%` }}
+              />
+            )}
+          </div>
+          <div className="flex gap-4 mt-2 text-xs text-gray-400">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              Completed ({statusCounts.completed})
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-yellow-500" />
+              In Progress ({statusCounts.in_progress})
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-gray-600" />
+              Remaining ({statusCounts.not_started + statusCounts.blocked})
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="flex flex-wrap gap-2 mb-6">
         {(['all', 'not_started', 'in_progress', 'completed', 'blocked'] as const).map((status) => (
@@ -146,6 +207,7 @@ export function AllTasks() {
                     onSync={task.type === 'sync' ? () => handleSync(task.id) : undefined}
                     onDelete={() => handleDeleteTask(task.id)}
                     isSyncing={syncingTasks.has(task.id)}
+                    starsTarget={getStarsTarget(task.sync_config?.repository)}
                   />
                 ))}
               </div>

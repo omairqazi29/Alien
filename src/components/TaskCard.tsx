@@ -7,6 +7,7 @@ interface TaskCardProps {
   onSync?: () => void;
   onDelete: () => void;
   isSyncing?: boolean;
+  starsTarget?: number;
 }
 
 const statusConfig: Record<TaskStatus, { icon: React.ElementType; color: string; bg: string }> = {
@@ -16,9 +17,23 @@ const statusConfig: Record<TaskStatus, { icon: React.ElementType; color: string;
   blocked: { icon: AlertCircle, color: 'text-red-400', bg: 'bg-red-400' },
 };
 
-export function TaskCard({ task, onStatusChange, onSync, onDelete, isSyncing }: TaskCardProps) {
+export function TaskCard({ task, onStatusChange, onSync, onDelete, isSyncing, starsTarget }: TaskCardProps) {
   const config = statusConfig[task.status];
   const StatusIcon = config.icon;
+
+  // Parse stars from evidence if it's a GitHub stars task
+  const parseStarsFromEvidence = (): number | null => {
+    if (!task.evidence || task.sync_source !== 'github_stars') return null;
+    const match = task.evidence.match(/has ([\d,]+) stars/);
+    if (match) {
+      return parseInt(match[1].replace(/,/g, ''), 10);
+    }
+    return null;
+  };
+
+  const currentStars = parseStarsFromEvidence();
+  const showStarsProgress = currentStars !== null && starsTarget && starsTarget > 0;
+  const starsProgress = showStarsProgress ? Math.min((currentStars / starsTarget) * 100, 100) : 0;
 
   const cycleStatus = () => {
     const statuses: TaskStatus[] = ['not_started', 'in_progress', 'completed', 'blocked'];
@@ -59,6 +74,22 @@ export function TaskCard({ task, onStatusChange, onSync, onDelete, isSyncing }: 
             <div className="mt-2 p-2 bg-gray-900 rounded text-xs text-gray-300">
               <span className="text-gray-500">Evidence: </span>
               {task.evidence}
+              {showStarsProgress && (
+                <div className="mt-2">
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-gray-400">{currentStars?.toLocaleString()} / {starsTarget.toLocaleString()} stars</span>
+                    <span className={starsProgress >= 100 ? 'text-emerald-400' : 'text-gray-400'}>
+                      {Math.round(starsProgress)}%
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-300 ${starsProgress >= 100 ? 'bg-emerald-500' : 'bg-blue-500'}`}
+                      style={{ width: `${starsProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {task.last_synced && (
