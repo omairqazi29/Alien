@@ -1,29 +1,15 @@
-import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Target, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
-import { storage } from '../lib/storage';
+import { useSelectedCriteria, useTasks } from '../hooks/useData';
 import { EB1A_CRITERIA } from '../types';
-import type { Criteria, CriteriaId, Task } from '../types';
+import type { CriteriaId } from '../types';
 
 export function Dashboard() {
   const navigate = useNavigate();
-  const [criteria, setCriteria] = useState<Criteria[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const { criteria: selectedIds, loading: criteriaLoading } = useSelectedCriteria();
+  const { tasks, loading: tasksLoading } = useTasks();
 
-  useEffect(() => {
-    const selectedIds = storage.getSelectedCriteria();
-    const allTasks = storage.getTasks();
-
-    setCriteria(
-      EB1A_CRITERIA.map(c => ({
-        ...c,
-        selected: selectedIds.includes(c.id),
-      }))
-    );
-    setTasks(allTasks);
-  }, []);
-
-  const selectedCriteria = criteria.filter(c => c.selected);
+  const selectedCriteria = EB1A_CRITERIA.filter(c => selectedIds.includes(c.id));
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.status === 'completed').length;
 
@@ -34,6 +20,14 @@ export function Dashboard() {
       completed: criteriaTasks.filter(t => t.status === 'completed').length,
     };
   };
+
+  if (criteriaLoading || tasksLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   // Show onboarding if no criteria selected
   if (selectedCriteria.length === 0) {

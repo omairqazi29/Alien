@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { FileText, Eye, Edit3, Save } from 'lucide-react';
+import { useEvidence } from '../hooks/useData';
 import type { CriteriaId } from '../types';
-import { storage } from '../lib/storage';
 
 interface EvidenceEditorProps {
   criteriaId: CriteriaId;
@@ -9,23 +9,26 @@ interface EvidenceEditorProps {
 }
 
 export function EvidenceEditor({ criteriaId, criteriaName }: EvidenceEditorProps) {
-  const [content, setContent] = useState('');
+  const { content, setContent: saveContent, loading } = useEvidence(criteriaId);
+  const [localContent, setLocalContent] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaved, setIsSaved] = useState(true);
+  const [initialized, setInitialized] = useState(false);
 
-  useEffect(() => {
-    const saved = storage.getEvidence(criteriaId);
-    setContent(saved);
-  }, [criteriaId]);
+  // Sync local content with loaded content
+  if (!loading && !initialized) {
+    setLocalContent(content);
+    setInitialized(true);
+  }
 
   const handleSave = () => {
-    storage.setEvidence(criteriaId, content);
+    saveContent(localContent);
     setIsSaved(true);
     setIsEditing(false);
   };
 
   const handleChange = (value: string) => {
-    setContent(value);
+    setLocalContent(value);
     setIsSaved(false);
   };
 
@@ -89,17 +92,21 @@ List any letters, articles, or other documents that support this criterion.
       </div>
 
       <div className="p-4">
-        {isEditing ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : isEditing ? (
           <textarea
-            value={content}
+            value={localContent}
             onChange={(e) => handleChange(e.target.value)}
             placeholder={placeholder}
             className="w-full h-80 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 font-mono text-sm resize-none"
           />
-        ) : content ? (
+        ) : localContent ? (
           <div className="prose prose-invert prose-sm max-w-none">
             <pre className="whitespace-pre-wrap text-gray-300 text-sm font-sans leading-relaxed">
-              {content}
+              {localContent}
             </pre>
           </div>
         ) : (
@@ -116,7 +123,7 @@ List any letters, articles, or other documents that support this criterion.
         )}
       </div>
 
-      {content && (
+      {localContent && (
         <div className="px-4 pb-4">
           <p className="text-xs text-gray-500">
             This content will be sent to the AI grader for evaluation. Use markdown formatting for better structure.

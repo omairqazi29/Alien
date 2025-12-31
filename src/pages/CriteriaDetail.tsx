@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus } from 'lucide-react';
 import { TaskCard } from '../components/TaskCard';
@@ -6,26 +6,19 @@ import { AddTaskModal } from '../components/AddTaskModal';
 import { AIGrader } from '../components/AIGrader';
 import { EvidenceEditor } from '../components/EvidenceEditor';
 import { PolicyGuidance } from '../components/PolicyGuidance';
-import { storage, generateId } from '../lib/storage';
+import { useTasks, useGrade } from '../hooks/useData';
 import { EB1A_CRITERIA } from '../types';
-import type { Task, TaskStatus, CriteriaId, AIGrade } from '../types';
+import type { TaskStatus, CriteriaId, AIGrade } from '../types';
 
 export function CriteriaDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const { tasks, loading: tasksLoading, addTask, updateTask, deleteTask } = useTasks(id as CriteriaId);
+  const { grade, setGrade, loading: gradeLoading } = useGrade(id as CriteriaId);
   const [showAddModal, setShowAddModal] = useState(false);
   const [syncingTasks, setSyncingTasks] = useState<Set<string>>(new Set());
-  const [grade, setGrade] = useState<AIGrade | undefined>();
 
   const criteria = EB1A_CRITERIA.find(c => c.id === id);
-
-  useEffect(() => {
-    if (id) {
-      setTasks(storage.getTasksByCriteria(id as CriteriaId));
-      setGrade(storage.getGradeByCriteria(id as CriteriaId));
-    }
-  }, [id]);
 
   if (!criteria) {
     return (
@@ -43,6 +36,14 @@ export function CriteriaDetail() {
     );
   }
 
+  if (tasksLoading || gradeLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   const handleAddTask = (taskData: {
     title: string;
     description: string;
@@ -50,9 +51,7 @@ export function CriteriaDetail() {
     sync_source?: any;
     sync_config?: Record<string, string>;
   }) => {
-    const now = new Date().toISOString();
-    const newTask: Task = {
-      id: generateId(),
+    addTask({
       criteria_id: id as CriteriaId,
       title: taskData.title,
       description: taskData.description,
@@ -60,23 +59,15 @@ export function CriteriaDetail() {
       sync_source: taskData.sync_source,
       sync_config: taskData.sync_config,
       status: 'not_started',
-      created_at: now,
-      updated_at: now,
-    };
-    storage.addTask(newTask);
-    setTasks(prev => [...prev, newTask]);
+    });
   };
 
   const handleStatusChange = (taskId: string, status: TaskStatus) => {
-    storage.updateTask(taskId, { status });
-    setTasks(prev =>
-      prev.map(t => (t.id === taskId ? { ...t, status, updated_at: new Date().toISOString() } : t))
-    );
+    updateTask(taskId, { status });
   };
 
   const handleDeleteTask = (taskId: string) => {
-    storage.deleteTask(taskId);
-    setTasks(prev => prev.filter(t => t.id !== taskId));
+    deleteTask(taskId);
   };
 
   const handleSync = async (taskId: string) => {
@@ -103,19 +94,11 @@ export function CriteriaDetail() {
         evidence = 'Data synced successfully (simulated)';
     }
 
-    storage.updateTask(taskId, {
+    updateTask(taskId, {
       evidence,
       last_synced: new Date().toISOString(),
       status: 'completed',
     });
-
-    setTasks(prev =>
-      prev.map(t =>
-        t.id === taskId
-          ? { ...t, evidence, last_synced: new Date().toISOString(), status: 'completed', updated_at: new Date().toISOString() }
-          : t
-      )
-    );
 
     setSyncingTasks(prev => {
       const next = new Set(prev);
@@ -125,7 +108,6 @@ export function CriteriaDetail() {
   };
 
   const handleGrade = (newGrade: AIGrade) => {
-    storage.setGradeByCriteria(newGrade);
     setGrade(newGrade);
   };
 
@@ -183,7 +165,7 @@ export function CriteriaDetail() {
           criteriaId={id as CriteriaId}
           criteriaName={criteria.name}
           tasks={tasks}
-          existingGrade={grade}
+          existingGrade={grade || undefined}
           onGrade={handleGrade}
         />
       </div>

@@ -1,21 +1,27 @@
-# The Alien Project - EB-1A Preparation Dashboard
+# The Alien Project
 
 A comprehensive dashboard to help prepare and track your EB-1A (Extraordinary Ability) visa application.
+
+**Live Demo**: [alien-lake.vercel.app](https://alien-lake.vercel.app)
 
 ## Features
 
 - **10 EB-1A Criteria** - Select and track the criteria you're targeting (need 3+ to qualify)
+- **USCIS Policy Guidance** - Official regulatory language, evidence examples, and key guidance for each criterion with links to the USCIS Policy Manual
 - **Task Management** - Create manual or sync-able tasks for each criterion
+- **Evidence Documentation** - Markdown editor for documenting evidence per criterion
 - **Sync Integration** - Infrastructure for syncing data from GitHub, Google Scholar, LinkedIn, etc.
 - **AI Grader** - Get AI-powered feedback on your evidence strength (simulated, connect your own API)
 - **Progress Tracking** - Visual progress bars and completion stats
-- **Local Storage** - Works offline, data persists in browser
+- **Authentication** - Supabase Auth with email/password
+- **Cloud Storage** - All data stored in Supabase PostgreSQL
 
 ## Tech Stack
 
 - **Frontend**: React 19 + TypeScript + Vite
 - **Styling**: Tailwind CSS 4
-- **Database**: Supabase (PostgreSQL) - optional, works with localStorage
+- **Backend**: Supabase (PostgreSQL + Auth)
+- **Hosting**: Vercel
 - **Icons**: Lucide React
 
 ## Getting Started
@@ -29,7 +35,7 @@ A comprehensive dashboard to help prepare and track your EB-1A (Extraordinary Ab
 
 ```bash
 # Clone the repo
-git clone https://github.com/yourusername/Alien.git
+git clone https://github.com/omairqazi29/Alien.git
 cd Alien
 
 # Install dependencies
@@ -39,7 +45,7 @@ npm install
 npm run dev
 ```
 
-### Environment Variables (Optional)
+### Environment Variables
 
 Copy `.env.example` to `.env` and fill in your values:
 
@@ -50,15 +56,17 @@ cp .env.example .env
 ```env
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-VITE_GITHUB_TOKEN=your_github_token  # For GitHub sync
-VITE_OPENAI_API_KEY=your_openai_key  # For AI grading
 ```
 
-### Setting up Supabase (Optional)
+### Setting up Supabase
 
 1. Create a new project at [supabase.com](https://supabase.com)
 2. Go to SQL Editor and run the schema from `supabase/schema.sql`
-3. Add your project URL and anon key to `.env`
+3. Run migrations from `supabase/migrations/` in order
+4. Add your project URL and anon key to `.env`
+5. Configure Auth redirect URLs in Supabase Dashboard:
+   - Site URL: `https://your-domain.vercel.app`
+   - Redirect URLs: `https://your-domain.vercel.app/**`
 
 ## EB-1A Criteria
 

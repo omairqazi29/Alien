@@ -1,30 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TaskCard } from '../components/TaskCard';
-import { storage } from '../lib/storage';
+import { useTasks } from '../hooks/useData';
 import { EB1A_CRITERIA } from '../types';
 import type { Task, TaskStatus, CriteriaId } from '../types';
 
 export function AllTasks() {
   const navigate = useNavigate();
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const { tasks, loading, updateTask, deleteTask } = useTasks();
   const [filter, setFilter] = useState<'all' | TaskStatus>('all');
   const [syncingTasks, setSyncingTasks] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    setTasks(storage.getTasks());
-  }, []);
-
   const handleStatusChange = (taskId: string, status: TaskStatus) => {
-    storage.updateTask(taskId, { status });
-    setTasks(prev =>
-      prev.map(t => (t.id === taskId ? { ...t, status, updated_at: new Date().toISOString() } : t))
-    );
+    updateTask(taskId, { status });
   };
 
   const handleDeleteTask = (taskId: string) => {
-    storage.deleteTask(taskId);
-    setTasks(prev => prev.filter(t => t.id !== taskId));
+    deleteTask(taskId);
   };
 
   const handleSync = async (taskId: string) => {
@@ -49,19 +41,11 @@ export function AllTasks() {
         evidence = 'Data synced successfully (simulated)';
     }
 
-    storage.updateTask(taskId, {
+    updateTask(taskId, {
       evidence,
       last_synced: new Date().toISOString(),
       status: 'completed',
     });
-
-    setTasks(prev =>
-      prev.map(t =>
-        t.id === taskId
-          ? { ...t, evidence, last_synced: new Date().toISOString(), status: 'completed' as TaskStatus, updated_at: new Date().toISOString() }
-          : t
-      )
-    );
 
     setSyncingTasks(prev => {
       const next = new Set(prev);
@@ -92,6 +76,14 @@ export function AllTasks() {
     completed: tasks.filter(t => t.status === 'completed').length,
     blocked: tasks.filter(t => t.status === 'blocked').length,
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div>
