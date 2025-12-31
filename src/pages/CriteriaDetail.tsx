@@ -166,7 +166,6 @@ export function CriteriaDetail() {
       <div className="mb-6">
         <AIGrader
           criteriaId={id as CriteriaId}
-          tasks={tasks}
           evidenceContent={evidenceContent}
           existingGrade={grade || undefined}
           onGrade={handleGrade}

@@ -1,19 +1,13 @@
-import type { Task, CriteriaId, ModelGrade } from '../types';
+import type { CriteriaId, ModelGrade } from '../types';
 import { EB1A_CRITERIA } from '../types';
 
 interface GradeRequest {
   criteriaId: CriteriaId;
   criteriaName: string;
   criteriaDescription: string;
-  policyDetails?: string;
-  tasks: Array<{
-    title: string;
-    description: string;
-    status: string;
-    evidence?: string;
-    exhibit?: string;
-  }>;
-  evidenceContent?: string;
+  policyDetails: string;
+  evidenceContent: string;
+  assumeEvidenceExists: boolean;
 }
 
 interface GradeResponse {
@@ -22,9 +16,9 @@ interface GradeResponse {
 
 export async function gradeEvidence(
   criteriaId: CriteriaId,
-  tasks: Task[],
-  evidenceContent?: string,
-  policyDetails?: string
+  evidenceContent: string,
+  policyDetails: string,
+  assumeEvidenceExists: boolean
 ): Promise<GradeResponse> {
   const criteria = EB1A_CRITERIA.find(c => c.id === criteriaId);
 
@@ -37,14 +31,8 @@ export async function gradeEvidence(
     criteriaName: criteria.name,
     criteriaDescription: `${criteria.officialTitle}\n\n${criteria.description}\n\nKey Guidance: ${criteria.keyGuidance}`,
     policyDetails,
-    tasks: tasks.map(t => ({
-      title: t.title,
-      description: t.description,
-      status: t.status,
-      evidence: t.evidence,
-      exhibit: t.exhibit,
-    })),
     evidenceContent,
+    assumeEvidenceExists,
   };
 
   const response = await fetch('/api/grade', {

@@ -71,6 +71,39 @@ export const db = {
     if (error) throw error;
   },
 
+  // Assume Evidence Exists toggle state per criteria
+  async getAssumeEvidenceExists(userId: string, criteriaId: CriteriaId): Promise<boolean> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('assume_evidence_exists')
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching assume evidence exists:', error);
+      return false;
+    }
+    return (data?.assume_evidence_exists as Record<string, boolean>)?.[criteriaId] || false;
+  },
+
+  async setAssumeEvidenceExists(userId: string, criteriaId: CriteriaId, value: boolean): Promise<void> {
+    const { data } = await supabase
+      .from('profiles')
+      .select('assume_evidence_exists')
+      .eq('id', userId)
+      .single();
+
+    const current = (data?.assume_evidence_exists || {}) as Record<string, boolean>;
+    current[criteriaId] = value;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ assume_evidence_exists: current, updated_at: new Date().toISOString() })
+      .eq('id', userId);
+
+    if (error) throw error;
+  },
+
   // Tasks
   async getTasks(userId: string): Promise<Task[]> {
     const { data, error } = await supabase

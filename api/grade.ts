@@ -8,15 +8,9 @@ interface GradeRequest {
   criteriaId: string;
   criteriaName: string;
   criteriaDescription: string;
-  policyDetails?: string;
-  tasks: Array<{
-    title: string;
-    description: string;
-    status: string;
-    evidence?: string;
-    exhibit?: string;
-  }>;
-  evidenceContent?: string;
+  policyDetails: string;
+  evidenceContent: string;
+  assumeEvidenceExists: boolean;
 }
 
 interface SingleGradeResponse {
@@ -59,29 +53,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { criteriaId, criteriaName, criteriaDescription, policyDetails, tasks, evidenceContent } = req.body as GradeRequest;
+    const { criteriaId, criteriaName, criteriaDescription, policyDetails, evidenceContent, assumeEvidenceExists } = req.body as GradeRequest;
 
-    const completedTasks = tasks.filter(t => t.status === 'completed');
+    if (!evidenceContent || !evidenceContent.trim()) {
+      return res.status(400).json({ error: 'No evidence content provided. Please add petition evidence before grading.' });
+    }
+
+    const assumeNote = assumeEvidenceExists
+      ? `\n\n**IMPORTANT**: The applicant has indicated that all exhibits and supporting documents referenced in the evidence documentation exist and are available. Evaluate the evidence assuming these documents are properly attached to the petition.`
+      : `\n\n**NOTE**: Evaluate only what is explicitly described in the evidence documentation. If exhibits or supporting documents are referenced but not described in detail, note this as a gap.`;
 
     const userPrompt = `
 ## Criterion Being Evaluated
 **${criteriaName}** (ID: ${criteriaId})
 ${criteriaDescription}
 
-${policyDetails ? `## USCIS Policy Manual Guidance\n${policyDetails}\n` : ''}
-## Evidence Submitted
+## USCIS Policy Manual Guidance
+${policyDetails}
 
-### Tasks/Evidence Items (${completedTasks.length} completed out of ${tasks.length} total):
-${tasks.map((t, i) => `
-${i + 1}. **${t.title}** [${t.status.toUpperCase()}]${t.exhibit ? ` (Exhibit ${t.exhibit})` : ''}
-   ${t.description || 'No description'}
-   ${t.evidence ? `Evidence: ${t.evidence}` : ''}
-`).join('\n')}
-
-${evidenceContent ? `### Additional Evidence Documentation:\n${evidenceContent}` : ''}
+## Evidence Documentation
+${evidenceContent}
+${assumeNote}
 
 ## Your Task
-Evaluate this evidence for the "${criteriaName}" criterion. Consider whether this evidence would convince a USCIS officer that the applicant has extraordinary ability at a national or international level.${policyDetails ? ' Apply the USCIS Policy Manual guidance provided above in your assessment.' : ''}
+Evaluate this evidence for the "${criteriaName}" criterion. Apply the USCIS Policy Manual guidance provided above in your assessment. Consider whether this evidence would convince a USCIS officer that the applicant has extraordinary ability at a national or international level.
 
 Respond with a JSON object containing:
 - "grade": one of "strong", "moderate", "weak", "insufficient"

@@ -194,3 +194,39 @@ export function useCriteriaPolicy(criteriaId: CriteriaId) {
 
   return { policyDetails, loading };
 }
+
+// Hook for "Assume Evidence Exists" toggle state
+export function useAssumeEvidenceExists(criteriaId: CriteriaId) {
+  const { user } = useAuth();
+  const [assumeExists, setAssumeExists] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const data = await db.getAssumeEvidenceExists(user.id, criteriaId);
+        setAssumeExists(data);
+      } catch (error) {
+        console.error('Failed to load assume evidence exists:', error);
+      }
+      setLoading(false);
+    }
+    load();
+  }, [user, criteriaId]);
+
+  const saveAssumeExists = useCallback(async (value: boolean) => {
+    if (!user) return;
+    setAssumeExists(value);
+    try {
+      await db.setAssumeEvidenceExists(user.id, criteriaId, value);
+    } catch (error) {
+      console.error('Failed to save assume evidence exists:', error);
+    }
+  }, [user, criteriaId]);
+
+  return { assumeExists, setAssumeExists: saveAssumeExists, loading };
+}

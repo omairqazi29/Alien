@@ -6,7 +6,7 @@ import type { GitHubRepoConfig } from '../types';
 import type { GitHubRepo } from '../lib/github';
 
 export function useGitHubConfig() {
-  const { user, gitHubToken } = useAuth();
+  const { user } = useAuth();
   const [username, setUsername] = useState<string | null>(null);
   const [repos, setRepos] = useState<GitHubRepoConfig[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,11 +31,11 @@ export function useGitHubConfig() {
     load();
   }, [load]);
 
-  useEffect(() => {
-    if (gitHubToken) {
-      github.setToken(gitHubToken);
-    }
-  }, [gitHubToken]);
+  const saveUsername = useCallback(async (newUsername: string) => {
+    if (!user) return;
+    await db.setGitHubUsername(user.id, newUsername);
+    setUsername(newUsername);
+  }, [user]);
 
   const addRepo = useCallback(
     async (repo: GitHubRepo) => {
@@ -80,9 +80,8 @@ export function useGitHubConfig() {
   );
 
   const syncAll = useCallback(async () => {
-    if (!user || !gitHubToken) return { reposUpdated: 0, tasksCompleted: 0 };
+    if (!user || !username) return { reposUpdated: 0, tasksCompleted: 0 };
 
-    github.setToken(gitHubToken);
     let totalTasksCompleted = 0;
 
     for (const repo of repos) {
@@ -103,9 +102,9 @@ export function useGitHubConfig() {
 
     await load();
     return { reposUpdated: repos.length, tasksCompleted: totalTasksCompleted };
-  }, [user, gitHubToken, repos, load]);
+  }, [user, username, repos, load]);
 
-  const isConnected = !!gitHubToken || !!username;
+  const isConnected = !!username;
 
   return {
     username,
@@ -116,39 +115,32 @@ export function useGitHubConfig() {
     removeRepo,
     updateThreshold,
     syncAll,
+    saveUsername,
     reload: load,
   };
 }
 
-export function useAvailableRepos(connectedRepos: GitHubRepoConfig[]) {
-  const { user, gitHubToken } = useAuth();
+export function useAvailableRepos(connectedRepos: GitHubRepoConfig[], username: string | null) {
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!gitHubToken) return;
+    if (!username) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      github.setToken(gitHubToken);
-      const ghUser = await github.getUser();
-      const allRepos = await github.getUserRepos();
-
-      if (user && ghUser.login) {
-        await db.setGitHubUsername(user.id, ghUser.login);
-      }
-
+      const allRepos = await github.getUserRepos(username);
       setRepos(allRepos.filter((r) => !connectedRepos.some((cr) => cr.id === r.id)));
     } catch (err) {
-      setError('Failed to load GitHub repositories');
+      setError('Failed to load GitHub repositories. Check that the username is correct.');
       console.error('Failed to load repos:', err);
     } finally {
       setLoading(false);
     }
-  }, [gitHubToken, user, connectedRepos]);
+  }, [username, connectedRepos]);
 
   const removeFromAvailable = useCallback((repoId: number) => {
     setRepos((prev) => prev.filter((r) => r.id !== repoId));

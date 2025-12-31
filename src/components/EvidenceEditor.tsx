@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { FileText, Edit3, Save, Upload, X, FileCheck, ToggleLeft, ToggleRight } from 'lucide-react';
-import { useEvidence } from '../hooks/useData';
+import { useEvidence, useAssumeEvidenceExists } from '../hooks/useData';
 import type { CriteriaId } from '../types';
 
 interface Exhibit {
@@ -17,12 +17,12 @@ interface EvidenceEditorProps {
 
 export function EvidenceEditor({ criteriaId, criteriaName }: EvidenceEditorProps) {
   const { content, setContent: saveContent, loading } = useEvidence(criteriaId);
+  const { assumeExists: assumeEvidenceExists, setAssumeExists: setAssumeEvidenceExists } = useAssumeEvidenceExists(criteriaId);
   const [localContent, setLocalContent] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaved, setIsSaved] = useState(true);
   const [initialized, setInitialized] = useState(false);
   const [exhibits, setExhibits] = useState<Exhibit[]>([]);
-  const [assumeEvidenceExists, setAssumeEvidenceExists] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync local content with loaded content

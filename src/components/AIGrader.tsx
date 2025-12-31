@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { Sparkles, AlertTriangle, CheckCircle, XCircle, HelpCircle } from 'lucide-react';
 import { gradeEvidence } from '../lib/ai';
-import { useCriteriaPolicy } from '../hooks/useData';
+import { useCriteriaPolicy, useAssumeEvidenceExists } from '../hooks/useData';
 import { Button, Alert, Card } from './ui';
-import type { AIGrade, CriteriaId, GradeLevel, Task, ModelGrade } from '../types';
+import type { AIGrade, CriteriaId, GradeLevel, ModelGrade } from '../types';
 
 interface AIGraderProps {
   criteriaId: CriteriaId;
-  tasks: Task[];
-  evidenceContent?: string;
+  evidenceContent: string;
   existingGrade?: AIGrade;
   onGrade: (grade: AIGrade) => void;
 }
@@ -65,17 +64,23 @@ function GradeCard({ grade }: { grade: ModelGrade }) {
   );
 }
 
-export function AIGrader({ criteriaId, tasks, evidenceContent, existingGrade, onGrade }: AIGraderProps) {
+export function AIGrader({ criteriaId, evidenceContent, existingGrade, onGrade }: AIGraderProps) {
   const [isGrading, setIsGrading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { policyDetails } = useCriteriaPolicy(criteriaId);
+  const { assumeExists } = useAssumeEvidenceExists(criteriaId);
 
   const handleGrade = async () => {
+    if (!evidenceContent || !evidenceContent.trim()) {
+      setError('Please add petition evidence before grading.');
+      return;
+    }
+
     setIsGrading(true);
     setError(null);
 
     try {
-      const result = await gradeEvidence(criteriaId, tasks, evidenceContent, policyDetails);
+      const result = await gradeEvidence(criteriaId, evidenceContent, policyDetails, assumeExists);
 
       const aiGrade: AIGrade = {
         id: `grade-${criteriaId}-${Date.now()}`,

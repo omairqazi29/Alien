@@ -1,5 +1,5 @@
-// Pre-defined tasks from EB-1A spreadsheet
-// Run the SQL in Supabase to seed your tasks after creating an account
+// Example tasks for EB-1A preparation
+// These are generic examples - users should create their own specific tasks
 
 import type { CriteriaId, TaskStatus } from '../types';
 
@@ -11,159 +11,99 @@ interface SeedTask {
   exhibit?: string;
 }
 
+// Generic example tasks - NOT personalized
 export const SEED_TASKS: SeedTask[] = [
-  // Original Contributions - Mimir Project
+  // Original Contributions - Examples
   {
     criteria_id: 'original_contribution',
-    title: 'Mimir Project - Commit code to GitHub',
-    description: 'Push Mimir project code to public repository',
-    status: 'completed',
-  },
-  {
-    criteria_id: 'original_contribution',
-    title: 'Mimir Project - Get GitHub stars',
-    description: 'Achieve significant star count on repository',
-    status: 'in_progress',
-  },
-  {
-    criteria_id: 'original_contribution',
-    title: 'Mimir Project - Publish to Medium',
-    description: 'Write technical article about Mimir on Medium',
+    title: 'Document Major Project',
+    description: 'Document a significant project with measurable impact',
     status: 'not_started',
   },
   {
     criteria_id: 'original_contribution',
-    title: 'Mimir Project - Publish Journal Article',
-    description: 'Submit and publish in peer-reviewed journal',
+    title: 'Gather Usage/Adoption Metrics',
+    description: 'Collect metrics showing adoption of your work (users, downloads, citations, etc.)',
+    status: 'not_started',
+  },
+  {
+    criteria_id: 'original_contribution',
+    title: 'Expert Recommendation Letter',
+    description: 'Request letter from industry expert attesting to your contributions',
     status: 'not_started',
   },
 
-  // Original Contributions - Sentinel Project
-  {
-    criteria_id: 'original_contribution',
-    title: 'Sentinel Project - Commit code to GitHub',
-    description: 'Push Sentinel project code to public repository',
-    status: 'completed',
-  },
-  {
-    criteria_id: 'original_contribution',
-    title: 'Sentinel Project - Get GitHub stars',
-    description: 'Achieve significant star count on repository',
-    status: 'in_progress',
-  },
-  {
-    criteria_id: 'original_contribution',
-    title: 'Sentinel Project - Publish to Medium',
-    description: 'Write technical article about Sentinel on Medium',
-    status: 'not_started',
-  },
-  {
-    criteria_id: 'original_contribution',
-    title: 'Sentinel Project - Publish Journal Article',
-    description: 'Submit and publish in peer-reviewed journal',
-    status: 'not_started',
-  },
-
-  // Press/Published Material - Major Media
-  {
-    criteria_id: 'press',
-    title: 'TechBullion Article',
-    description: 'Published article about your work in TechBullion',
-    status: 'completed',
-  },
-  {
-    criteria_id: 'press',
-    title: 'NerdBot Coverage',
-    description: 'Coverage of your work on NerdBot',
-    status: 'completed',
-  },
-
-  // High Salary
+  // High Salary - Examples
   {
     criteria_id: 'high_salary',
-    title: 'Amazon Employment Verification',
-    description: 'Get employment verification letter from Amazon',
+    title: 'Employment Verification Letter',
+    description: 'Obtain official letter confirming position and compensation',
     status: 'not_started',
   },
   {
     criteria_id: 'high_salary',
-    title: 'DOL Wage Comparison Data',
-    description: 'Gather Department of Labor wage data for comparison',
-    status: 'not_started',
-  },
-  {
-    criteria_id: 'high_salary',
-    title: 'Tax Returns Documentation',
-    description: 'Compile tax returns showing high salary',
+    title: 'Wage Comparison Data',
+    description: 'Gather DOL or industry wage data for comparison',
     status: 'not_started',
   },
 
-  // Leading/Critical Role
+  // Leading Role - Examples
   {
     criteria_id: 'leading_role',
-    title: 'Amazon Senior Role Documentation',
-    description: 'Document senior/lead role at Amazon with responsibilities',
+    title: 'Document Leadership Position',
+    description: 'Document your role and responsibilities in distinguished organization',
     status: 'not_started',
   },
   {
     criteria_id: 'leading_role',
-    title: 'ASCS CLM Project Lead Evidence',
-    description: 'Evidence of leading the ASCS CLM project',
+    title: 'Organizational Chart',
+    description: 'Obtain org chart showing your position and reporting structure',
     status: 'not_started',
   },
 
-  // Scholarly Articles
+  // Scholarly Articles - Examples
   {
     criteria_id: 'scholarly_articles',
-    title: 'Medium Technical Articles',
-    description: 'Compile list of published Medium articles',
-    status: 'in_progress',
+    title: 'Compile Publication List',
+    description: 'List all published articles, papers, or technical writing',
+    status: 'not_started',
   },
   {
     criteria_id: 'scholarly_articles',
-    title: 'Journal Publication',
-    description: 'Submit and publish peer-reviewed journal article',
+    title: 'Gather Citation Metrics',
+    description: 'Document citations and readership metrics for your work',
     status: 'not_started',
   },
 
-  // Judging
+  // Press - Examples
+  {
+    criteria_id: 'press',
+    title: 'Compile Media Coverage',
+    description: 'Gather articles or coverage about you or your work',
+    status: 'not_started',
+  },
+
+  // Judging - Examples
   {
     criteria_id: 'judging',
-    title: 'Peer Review Evidence',
-    description: 'Gather evidence of peer reviewing work (if applicable)',
+    title: 'Document Review Activities',
+    description: 'Document peer review, judging, or evaluation roles',
     status: 'not_started',
   },
 
-  // Expert Letters (applies to multiple criteria)
+  // Awards - Examples
   {
-    criteria_id: 'original_contribution',
-    title: 'Expert Letter - Colleague 1',
-    description: 'Request recommendation letter from industry expert',
+    criteria_id: 'awards',
+    title: 'Compile Awards List',
+    description: 'List nationally/internationally recognized awards or prizes',
     status: 'not_started',
   },
+
+  // Membership - Examples
   {
-    criteria_id: 'original_contribution',
-    title: 'Expert Letter - Colleague 2',
-    description: 'Request recommendation letter from another expert',
-    status: 'not_started',
-  },
-  {
-    criteria_id: 'original_contribution',
-    title: 'Expert Letter - Academic',
-    description: 'Request recommendation letter from academic expert',
+    criteria_id: 'membership',
+    title: 'Document Professional Memberships',
+    description: 'Document memberships in associations requiring outstanding achievement',
     status: 'not_started',
   },
 ];
-
-// SQL to insert these tasks (run in Supabase SQL Editor after getting your user_id)
-export function generateInsertSQL(userId: string): string {
-  const values = SEED_TASKS.map(task =>
-    `('${userId}', '${task.criteria_id}', '${task.title.replace(/'/g, "''")}', '${task.description.replace(/'/g, "''")}', 'manual', '${task.status}'${task.exhibit ? `, '${task.exhibit}'` : ', NULL'})`
-  ).join(',\n  ');
-
-  return `
-INSERT INTO tasks (user_id, criteria_id, title, description, type, status, exhibit)
-VALUES
-  ${values};
-`;
-}

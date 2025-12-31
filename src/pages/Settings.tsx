@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Upload, Database, Github, RefreshCw, Star, Check, Plus, X } from 'lucide-react';
+import { Upload, Database, Github, RefreshCw, Star, Check, Plus, X, Save } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/database';
 import { useGitHubConfig, useAvailableRepos } from '../hooks/useGitHub';
@@ -89,14 +89,16 @@ function RepoSelectItem({ repo, onSelect }: { repo: GitHubRepo; onSelect: (repo:
 }
 
 export function Settings() {
-  const { user, signInWithGitHub } = useAuth();
+  const { user } = useAuth();
   const [showRepoSelector, setShowRepoSelector] = useState(false);
   const [syncResult, setSyncResult] = useState<{ tasksCompleted: number; reposUpdated: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [usernameInput, setUsernameInput] = useState('');
+  const [savingUsername, setSavingUsername] = useState(false);
 
   // GitHub hooks
-  const github = useGitHubConfig();
-  const availableRepos = useAvailableRepos(github.repos);
+  const githubConfig = useGitHubConfig();
+  const availableRepos = useAvailableRepos(githubConfig.repos, githubConfig.username);
 
   // Import tasks action
   const importAction = useAsyncAction(async () => {
@@ -115,15 +117,21 @@ export function Settings() {
 
   // Sync repos action
   const syncAction = useAsyncAction(async () => {
-    const result = await github.syncAll();
+    const result = await githubConfig.syncAll();
     setSyncResult(result);
   });
 
-  const handleConnectGitHub = async () => {
+  const handleSaveUsername = async () => {
+    if (!usernameInput.trim()) return;
+    setSavingUsername(true);
+    setError(null);
     try {
-      await signInWithGitHub();
+      await githubConfig.saveUsername(usernameInput.trim());
+      setUsernameInput('');
     } catch {
-      setError('Failed to connect GitHub');
+      setError('Failed to save GitHub username');
+    } finally {
+      setSavingUsername(false);
     }
   };
 
@@ -133,7 +141,7 @@ export function Settings() {
   };
 
   const handleAddRepo = async (repo: GitHubRepo) => {
-    await github.addRepo(repo);
+    await githubConfig.addRepo(repo);
     availableRepos.removeFromAvailable(repo.id);
     if (availableRepos.repos.length === 1) {
       setShowRepoSelector(false);
@@ -161,32 +169,48 @@ export function Settings() {
         <CardHeader
           icon={<Github className="w-6 h-6 text-white" />}
           title="GitHub Integration"
-          description="Connect GitHub to track repository stars for your Original Contributions criterion. Set thresholds to auto-complete tasks when milestones are reached."
+          description="Add your GitHub username to track repository stars for your Original Contributions criterion. Set thresholds to auto-complete tasks when milestones are reached."
           action={
-            github.isConnected && (
+            githubConfig.isConnected && (
               <span className="flex items-center gap-1 text-xs text-emerald-400">
                 <Check className="w-3 h-3" />
-                Connected{github.username && ` as @${github.username}`}
+                Connected as @{githubConfig.username}
               </span>
             )
           }
         />
 
         <div className="mt-4">
-          {!github.isConnected ? (
-            <Button variant="secondary" icon={<Github className="w-4 h-4" />} onClick={handleConnectGitHub}>
-              Connect GitHub
-            </Button>
+          {!githubConfig.isConnected ? (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={usernameInput}
+                onChange={(e) => setUsernameInput(e.target.value)}
+                placeholder="Enter GitHub username"
+                className="flex-1 px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveUsername()}
+              />
+              <Button
+                variant="primary"
+                loading={savingUsername}
+                icon={<Save className="w-4 h-4" />}
+                onClick={handleSaveUsername}
+                disabled={!usernameInput.trim()}
+              >
+                Save
+              </Button>
+            </div>
           ) : (
             <>
-              {github.repos.length > 0 && (
+              {githubConfig.repos.length > 0 && (
                 <div className="space-y-3 mb-4">
-                  {github.repos.map((repo) => (
+                  {githubConfig.repos.map((repo) => (
                     <ConnectedRepoCard
                       key={repo.id}
                       repo={repo}
-                      onUpdateThreshold={github.updateThreshold}
-                      onRemove={github.removeRepo}
+                      onUpdateThreshold={githubConfig.updateThreshold}
+                      onRemove={githubConfig.removeRepo}
                     />
                   ))}
                 </div>
@@ -202,7 +226,7 @@ export function Settings() {
                   Add Repository
                 </Button>
 
-                {github.repos.length > 0 && (
+                {githubConfig.repos.length > 0 && (
                   <Button
                     variant="primary"
                     loading={syncAction.loading}

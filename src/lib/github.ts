@@ -1,4 +1,4 @@
-// GitHub API helper functions
+// GitHub API helper functions (public API - no auth required)
 
 export interface GitHubRepo {
   id: number;
@@ -31,26 +31,15 @@ export interface RepoMetrics {
   stars: number;
   forks: number;
   watchers: number;
-  contributors?: number;
 }
 
 class GitHubAPI {
-  private token: string | null = null;
-
-  setToken(token: string | null) {
-    this.token = token;
-  }
-
   private async fetch<T>(endpoint: string): Promise<T> {
-    const headers: HeadersInit = {
-      'Accept': 'application/vnd.github.v3+json',
-    };
-
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
-    }
-
-    const response = await fetch(`https://api.github.com${endpoint}`, { headers });
+    const response = await fetch(`https://api.github.com${endpoint}`, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+      },
+    });
 
     if (!response.ok) {
       throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
@@ -59,15 +48,12 @@ class GitHubAPI {
     return response.json();
   }
 
-  async getUser(): Promise<GitHubUser> {
-    return this.fetch<GitHubUser>('/user');
+  async getUser(username: string): Promise<GitHubUser> {
+    return this.fetch<GitHubUser>(`/users/${username}`);
   }
 
-  async getUserRepos(username?: string): Promise<GitHubRepo[]> {
-    if (username) {
-      return this.fetch<GitHubRepo[]>(`/users/${username}/repos?sort=updated&per_page=100`);
-    }
-    return this.fetch<GitHubRepo[]>('/user/repos?sort=updated&per_page=100');
+  async getUserRepos(username: string): Promise<GitHubRepo[]> {
+    return this.fetch<GitHubRepo[]>(`/users/${username}/repos?sort=updated&per_page=100&type=owner`);
   }
 
   async getRepo(owner: string, repo: string): Promise<GitHubRepo> {
@@ -77,35 +63,10 @@ class GitHubAPI {
   async getRepoMetrics(owner: string, repo: string): Promise<RepoMetrics> {
     const repoData = await this.getRepo(owner, repo);
 
-    // Try to get contributor count (may fail for large repos)
-    let contributors = 0;
-    try {
-      const contribResponse = await fetch(
-        `https://api.github.com/repos/${owner}/${repo}/contributors?per_page=1`,
-        {
-          headers: this.token ? { 'Authorization': `Bearer ${this.token}` } : {},
-        }
-      );
-      // GitHub returns Link header with total count
-      const linkHeader = contribResponse.headers.get('Link');
-      if (linkHeader) {
-        const match = linkHeader.match(/page=(\d+)>; rel="last"/);
-        if (match) {
-          contributors = parseInt(match[1], 10);
-        }
-      } else {
-        const contribs = await contribResponse.json();
-        contributors = Array.isArray(contribs) ? contribs.length : 0;
-      }
-    } catch {
-      // Ignore contributor count errors
-    }
-
     return {
       stars: repoData.stargazers_count,
       forks: repoData.forks_count,
       watchers: repoData.watchers_count,
-      contributors,
     };
   }
 }
