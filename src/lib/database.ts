@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Task, CriteriaId, AIGrade } from '../types';
+import type { Task, CriteriaId, AIGrade, GitHubRepoConfig } from '../types';
 
 export const db = {
   // Profile / Criteria Selection
@@ -186,5 +186,92 @@ export const db = {
       });
 
     if (error) throw error;
+  },
+
+  // GitHub Integration
+  async getGitHubConfig(userId: string): Promise<{ username: string | null; repos: GitHubRepoConfig[] }> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('github_username, github_repos')
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching GitHub config:', error);
+      return { username: null, repos: [] };
+    }
+    return {
+      username: data?.github_username || null,
+      repos: (data?.github_repos || []) as GitHubRepoConfig[],
+    };
+  },
+
+  async setGitHubUsername(userId: string, username: string): Promise<void> {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ github_username: username, updated_at: new Date().toISOString() })
+      .eq('id', userId);
+
+    if (error) throw error;
+  },
+
+  async setGitHubRepos(userId: string, repos: GitHubRepoConfig[]): Promise<void> {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ github_repos: repos, updated_at: new Date().toISOString() })
+      .eq('id', userId);
+
+    if (error) throw error;
+  },
+
+  async updateRepoMetrics(userId: string, repoFullName: string, stars: number): Promise<void> {
+    const { repos } = await this.getGitHubConfig(userId);
+    const updatedRepos = repos.map(repo =>
+      repo.full_name === repoFullName
+        ? { ...repo, current_stars: stars, last_synced: new Date().toISOString() }
+        : repo
+    );
+    await this.setGitHubRepos(userId, updatedRepos);
+  },
+
+  // Find tasks linked to a GitHub repo via sync_config
+  async getTasksByRepo(userId: string, repoFullName: string): Promise<Task[]> {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('sync_source', 'github_stars')
+      .contains('sync_config', { repository: repoFullName });
+
+    if (error) {
+      console.error('Error fetching tasks by repo:', error);
+      return [];
+    }
+    return (data || []) as Task[];
+  },
+
+  // Auto-complete tasks when repo threshold is met
+  async autoCompleteRepoTasks(
+    userId: string,
+    repoFullName: string,
+    currentStars: number,
+    threshold: number
+  ): Promise<{ updated: number; tasks: Task[] }> {
+    if (currentStars < threshold) {
+      return { updated: 0, tasks: [] };
+    }
+
+    const tasks = await this.getTasksByRepo(userId, repoFullName);
+    const tasksToUpdate = tasks.filter(t => t.status !== 'completed');
+
+    for (const task of tasksToUpdate) {
+      await this.updateTask(task.id, {
+        status: 'completed',
+        last_synced: new Date().toISOString(),
+        evidence: `Auto-completed: ${repoFullName} reached ${currentStars} stars (threshold: ${threshold})`
+      });
+    }
+
+    return { updated: tasksToUpdate.length, tasks: tasksToUpdate };
   },
 };

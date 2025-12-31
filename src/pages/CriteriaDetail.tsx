@@ -209,12 +209,11 @@ export function CriteriaDetail() {
         </div>
       )}
 
-      {showAddModal && (
-        <AddTaskModal
-          onClose={() => setShowAddModal(false)}
-          onAdd={handleAddTask}
-        />
-      )}
+      <AddTaskModal
+        open={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onAdd={handleAddTask}
+      />
     </div>
   );
 }

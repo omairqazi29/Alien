@@ -63,10 +63,21 @@ export interface AIGrade {
   graded_at: string;
 }
 
+export interface GitHubRepoConfig {
+  id: number;
+  full_name: string; // e.g., "owner/repo"
+  name: string;
+  stars_threshold?: number; // auto-complete task when stars reach this
+  current_stars?: number;
+  last_synced?: string;
+}
+
 export interface UserProfile {
   id: string;
   selected_criteria: CriteriaId[];
   criteria_evidence: Record<CriteriaId, string>; // markdown content per criterion
+  github_username?: string;
+  github_repos?: GitHubRepoConfig[]; // connected repos for tracking
   created_at: string;
   updated_at: string;
 }

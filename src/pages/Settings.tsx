@@ -1,110 +1,309 @@
 import { useState } from 'react';
-import { Upload, Database } from 'lucide-react';
+import { Upload, Database, Github, RefreshCw, Star, Check, Plus, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/database';
+import { useGitHubConfig, useAvailableRepos } from '../hooks/useGitHub';
+import { useAsyncAction } from '../hooks/useAsync';
+import { Button, Card, CardHeader, Modal, Alert, Badge } from '../components/ui';
 import { SEED_TASKS } from '../data/seedTasks';
 import type { CriteriaId } from '../types';
+import type { GitHubRepo } from '../lib/github';
+
+// Extracted component for connected repo display
+function ConnectedRepoCard({
+  repo,
+  onUpdateThreshold,
+  onRemove,
+}: {
+  repo: { id: number; name: string; current_stars?: number; stars_threshold?: number; last_synced?: string };
+  onUpdateThreshold: (id: number, threshold: number) => void;
+  onRemove: (id: number) => void;
+}) {
+  const meetsThreshold = (repo.current_stars || 0) >= (repo.stars_threshold || 0);
+
+  return (
+    <div
+      className={`p-3 rounded-lg border ${
+        meetsThreshold ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-gray-900 border-gray-700'
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-white">{repo.name}</span>
+            {meetsThreshold && <Badge variant="success">Threshold met!</Badge>}
+          </div>
+          <div className="flex items-center gap-3 mt-1 text-sm text-gray-400">
+            <span className="flex items-center gap-1">
+              <Star className="w-3 h-3" />
+              {repo.current_stars || 0} stars
+            </span>
+            <span>Target: {repo.stars_threshold || 0}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            value={repo.stars_threshold || 0}
+            onChange={(e) => onUpdateThreshold(repo.id, parseInt(e.target.value) || 0)}
+            className="w-20 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-sm text-center"
+            min="0"
+          />
+          <button
+            onClick={() => onRemove(repo.id)}
+            className="p-1 text-gray-400 hover:text-red-400 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+      {repo.last_synced && (
+        <p className="text-xs text-gray-500 mt-2">
+          Last synced: {new Date(repo.last_synced).toLocaleString()}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// Extracted component for repo selection item
+function RepoSelectItem({ repo, onSelect }: { repo: GitHubRepo; onSelect: (repo: GitHubRepo) => void }) {
+  return (
+    <button
+      onClick={() => onSelect(repo)}
+      className="w-full p-3 bg-gray-900 rounded-lg border border-gray-700 hover:border-emerald-500 transition-colors text-left"
+    >
+      <div className="font-medium text-white">{repo.name}</div>
+      <div className="flex items-center gap-3 mt-1 text-sm text-gray-400">
+        <span className="flex items-center gap-1">
+          <Star className="w-3 h-3" />
+          {repo.stargazers_count}
+        </span>
+        {repo.language && <span>{repo.language}</span>}
+      </div>
+      {repo.description && (
+        <p className="text-sm text-gray-500 mt-1 line-clamp-1">{repo.description}</p>
+      )}
+    </button>
+  );
+}
 
 export function Settings() {
-  const { user } = useAuth();
-  const [importing, setImporting] = useState(false);
-  const [imported, setImported] = useState(false);
+  const { user, signInWithGitHub } = useAuth();
+  const [showRepoSelector, setShowRepoSelector] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ tasksCompleted: number; reposUpdated: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleImportTasks = async () => {
+  // GitHub hooks
+  const github = useGitHubConfig();
+  const availableRepos = useAvailableRepos(github.repos);
+
+  // Import tasks action
+  const importAction = useAsyncAction(async () => {
     if (!user) return;
+    for (const task of SEED_TASKS) {
+      await db.addTask(user.id, {
+        criteria_id: task.criteria_id,
+        title: task.title,
+        description: task.description,
+        type: 'manual',
+        status: task.status,
+        exhibit: task.exhibit,
+      });
+    }
+  });
 
-    setImporting(true);
-    setError(null);
+  // Sync repos action
+  const syncAction = useAsyncAction(async () => {
+    const result = await github.syncAll();
+    setSyncResult(result);
+  });
 
+  const handleConnectGitHub = async () => {
     try {
-      for (const task of SEED_TASKS) {
-        await db.addTask(user.id, {
-          criteria_id: task.criteria_id,
-          title: task.title,
-          description: task.description,
-          type: 'manual',
-          status: task.status,
-          exhibit: task.exhibit,
-        });
-      }
-      setImported(true);
-    } catch (err) {
-      console.error('Failed to import tasks:', err);
-      setError('Failed to import some tasks. They may already exist.');
-    } finally {
-      setImporting(false);
+      await signInWithGitHub();
+    } catch {
+      setError('Failed to connect GitHub');
+    }
+  };
+
+  const handleLoadRepos = async () => {
+    await availableRepos.load();
+    setShowRepoSelector(true);
+  };
+
+  const handleAddRepo = async (repo: GitHubRepo) => {
+    await github.addRepo(repo);
+    availableRepos.removeFromAvailable(repo.id);
+    if (availableRepos.repos.length === 1) {
+      setShowRepoSelector(false);
     }
   };
 
   // Count tasks per criteria
-  const tasksByCriteria = SEED_TASKS.reduce((acc, task) => {
-    acc[task.criteria_id] = (acc[task.criteria_id] || 0) + 1;
-    return acc;
-  }, {} as Record<CriteriaId, number>);
+  const tasksByCriteria = SEED_TASKS.reduce(
+    (acc, task) => {
+      acc[task.criteria_id] = (acc[task.criteria_id] || 0) + 1;
+      return acc;
+    },
+    {} as Record<CriteriaId, number>
+  );
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white mb-2">Settings</h1>
-        <p className="text-gray-400">Manage your account and import data.</p>
+        <p className="text-gray-400">Manage your account, connect GitHub, and import data.</p>
       </div>
+
+      {/* GitHub Integration */}
+      <Card padding="lg" className="mb-6">
+        <CardHeader
+          icon={<Github className="w-6 h-6 text-white" />}
+          title="GitHub Integration"
+          description="Connect GitHub to track repository stars for your Original Contributions criterion. Set thresholds to auto-complete tasks when milestones are reached."
+          action={
+            github.isConnected && (
+              <span className="flex items-center gap-1 text-xs text-emerald-400">
+                <Check className="w-3 h-3" />
+                Connected{github.username && ` as @${github.username}`}
+              </span>
+            )
+          }
+        />
+
+        <div className="mt-4">
+          {!github.isConnected ? (
+            <Button variant="secondary" icon={<Github className="w-4 h-4" />} onClick={handleConnectGitHub}>
+              Connect GitHub
+            </Button>
+          ) : (
+            <>
+              {github.repos.length > 0 && (
+                <div className="space-y-3 mb-4">
+                  {github.repos.map((repo) => (
+                    <ConnectedRepoCard
+                      key={repo.id}
+                      repo={repo}
+                      onUpdateThreshold={github.updateThreshold}
+                      onRemove={github.removeRepo}
+                    />
+                  ))}
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="secondary"
+                  loading={availableRepos.loading}
+                  icon={<Plus className="w-4 h-4" />}
+                  onClick={handleLoadRepos}
+                >
+                  Add Repository
+                </Button>
+
+                {github.repos.length > 0 && (
+                  <Button
+                    variant="primary"
+                    loading={syncAction.loading}
+                    icon={<RefreshCw className={`w-4 h-4 ${syncAction.loading ? 'animate-spin' : ''}`} />}
+                    onClick={() => syncAction.execute()}
+                  >
+                    Sync All
+                  </Button>
+                )}
+
+                {syncResult && (
+                  <div className="flex items-center gap-2 text-sm text-emerald-400">
+                    <Check className="w-4 h-4" />
+                    <span>
+                      Synced {syncResult.reposUpdated} repos
+                      {syncResult.tasksCompleted > 0 && (
+                        <>
+                          , auto-completed {syncResult.tasksCompleted} task
+                          {syncResult.tasksCompleted !== 1 ? 's' : ''}!
+                        </>
+                      )}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Repo Selector Modal */}
+              <Modal
+                open={showRepoSelector}
+                onClose={() => setShowRepoSelector(false)}
+                title="Select Repository"
+                size="lg"
+              >
+                <div className="p-4">
+                  {availableRepos.repos.length === 0 ? (
+                    <p className="text-gray-400 text-center py-8">No more repositories available</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {availableRepos.repos.map((repo) => (
+                        <RepoSelectItem key={repo.id} repo={repo} onSelect={handleAddRepo} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Modal>
+            </>
+          )}
+
+          {(error || availableRepos.error || syncAction.error) && (
+            <Alert variant="error" className="mt-4">
+              {error || availableRepos.error || syncAction.error}
+            </Alert>
+          )}
+        </div>
+      </Card>
 
       {/* Import Seed Tasks */}
-      <div className="bg-gray-800 rounded-lg border border-gray-700 p-6 mb-6">
-        <div className="flex items-start gap-4">
-          <div className="p-3 bg-blue-500/20 rounded-lg">
-            <Database className="w-6 h-6 text-blue-400" />
-          </div>
-          <div className="flex-1">
-            <h3 className="font-semibold text-white mb-1">Import Pre-defined Tasks</h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Import {SEED_TASKS.length} tasks from your EB-1A preparation spreadsheet.
-              This includes tasks for:
-            </p>
-            <ul className="text-sm text-gray-400 mb-4 space-y-1">
-              {Object.entries(tasksByCriteria).map(([criteriaId, count]) => (
-                <li key={criteriaId} className="flex items-center gap-2">
-                  <span className="w-2 h-2 bg-emerald-500 rounded-full" />
-                  {criteriaId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}: {count} tasks
-                </li>
-              ))}
-            </ul>
+      <Card padding="lg" className="mb-6">
+        <CardHeader
+          icon={<Database className="w-6 h-6 text-blue-400" />}
+          title="Import Pre-defined Tasks"
+          description={`Import ${SEED_TASKS.length} tasks from your EB-1A preparation spreadsheet.`}
+        />
 
-            {imported ? (
-              <div className="flex items-center gap-2 text-emerald-400">
-                <Upload className="w-4 h-4" />
-                Tasks imported successfully! Go to Criteria to see them.
-              </div>
-            ) : (
-              <button
-                onClick={handleImportTasks}
-                disabled={importing}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors disabled:opacity-50"
-              >
-                {importing ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Importing...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-4 h-4" />
-                    Import Tasks
-                  </>
-                )}
-              </button>
-            )}
+        <div className="mt-4">
+          <ul className="text-sm text-gray-400 mb-4 space-y-1">
+            {Object.entries(tasksByCriteria).map(([criteriaId, count]) => (
+              <li key={criteriaId} className="flex items-center gap-2">
+                <span className="w-2 h-2 bg-emerald-500 rounded-full" />
+                {criteriaId.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}: {count} tasks
+              </li>
+            ))}
+          </ul>
 
-            {error && (
-              <p className="text-sm text-red-400 mt-2">{error}</p>
-            )}
-          </div>
+          {importAction.success ? (
+            <Alert variant="success">
+              <Upload className="w-4 h-4 inline mr-2" />
+              Tasks imported successfully! Go to Criteria to see them.
+            </Alert>
+          ) : (
+            <Button
+              variant="primary"
+              className="bg-blue-600 hover:bg-blue-500"
+              loading={importAction.loading}
+              icon={<Upload className="w-4 h-4" />}
+              onClick={() => importAction.execute()}
+            >
+              {importAction.loading ? 'Importing...' : 'Import Tasks'}
+            </Button>
+          )}
+
+          {importAction.error && (
+            <Alert variant="error" className="mt-4">
+              {importAction.error}
+            </Alert>
+          )}
         </div>
-      </div>
+      </Card>
 
       {/* Account Info */}
-      <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+      <Card padding="lg">
         <h3 className="font-semibold text-white mb-4">Account</h3>
         <div className="space-y-3">
           <div>
@@ -116,7 +315,7 @@ export function Settings() {
             <p className="text-white font-mono text-sm">{user?.id}</p>
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
