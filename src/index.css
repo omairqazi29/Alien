@@ -1,0 +1,6 @@
+@import "tailwindcss";
+
+body {
+  @apply bg-gray-900 text-gray-100 m-0;
+  min-height: 100vh;
+}
