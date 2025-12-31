@@ -2,87 +2,27 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TaskCard } from '../components/TaskCard';
 import { EditTaskModal } from '../components/EditTaskModal';
+import { LoadingSpinner } from '../components/ui';
 import { useTasks } from '../hooks/useData';
-import { useGitHubConfig } from '../hooks/useGitHub';
+import { useTaskActions } from '../hooks/useTaskActions';
 import { EB1A_CRITERIA } from '../types';
-import { github } from '../lib/github';
 import type { Task, TaskStatus, CriteriaId } from '../types';
 
 export function AllTasks() {
   const navigate = useNavigate();
   const { tasks, loading, updateTask, deleteTask } = useTasks();
-  const { repos } = useGitHubConfig();
   const [filter, setFilter] = useState<'all' | TaskStatus>('all');
-  const [syncingTasks, setSyncingTasks] = useState<Set<string>>(new Set());
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
-  // Get stars target for a task based on its connected repo
-  const getStarsTarget = (repoFullName?: string): number | undefined => {
-    if (!repoFullName) return undefined;
-    const repo = repos.find(r => r.full_name === repoFullName);
-    return repo?.stars_threshold;
-  };
-
-  const handleStatusChange = (taskId: string, status: TaskStatus) => {
-    updateTask(taskId, { status });
-  };
-
-  const handleDeleteTask = (taskId: string) => {
-    deleteTask(taskId);
-  };
-
-  const handleSync = async (taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    setSyncingTasks(prev => new Set(prev).add(taskId));
-
-    let evidence = '';
-    let shouldComplete = false;
-    try {
-      switch (task.sync_source) {
-        case 'github_stars': {
-          const repoFullName = task.sync_config?.repository;
-          if (repoFullName) {
-            const [owner, repo] = repoFullName.split('/');
-            const metrics = await github.getRepoMetrics(owner, repo);
-            evidence = `Repository has ${metrics.stars.toLocaleString()} stars`;
-            // Check if target is met
-            const target = getStarsTarget(repoFullName);
-            shouldComplete = target ? metrics.stars >= target : false;
-          } else {
-            evidence = 'No repository configured';
-          }
-          break;
-        }
-        case 'github_contributions':
-          evidence = `GitHub contributions (connect in Settings to sync)`;
-          break;
-        case 'google_scholar':
-          evidence = `Google Scholar citations (integration coming soon)`;
-          break;
-        default:
-          evidence = 'Data synced successfully';
-      }
-    } catch (error) {
-      evidence = `Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-    }
-
-    // Only mark as completed if target is met, otherwise mark as in_progress
-    const newStatus = shouldComplete ? 'completed' : 'in_progress';
-
-    updateTask(taskId, {
-      evidence,
-      last_synced: new Date().toISOString(),
-      status: newStatus,
-    });
-
-    setSyncingTasks(prev => {
-      const next = new Set(prev);
-      next.delete(taskId);
-      return next;
-    });
-  };
+  const {
+    editingTask,
+    setEditingTask,
+    getStarsTarget,
+    isSyncing,
+    handleSync,
+    handleStatusChange,
+    handleDelete,
+    handleEditSave,
+  } = useTaskActions({ tasks, updateTask, deleteTask });
 
   const getCriteriaName = (criteriaId: CriteriaId) => {
     return EB1A_CRITERIA.find(c => c.id === criteriaId)?.name || criteriaId;
@@ -108,11 +48,7 @@ export function AllTasks() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (
@@ -215,8 +151,8 @@ export function AllTasks() {
                     onStatusChange={(status) => handleStatusChange(task.id, status)}
                     onSync={task.type === 'sync' ? () => handleSync(task.id) : undefined}
                     onEdit={() => setEditingTask(task)}
-                    onDelete={() => handleDeleteTask(task.id)}
-                    isSyncing={syncingTasks.has(task.id)}
+                    onDelete={() => handleDelete(task.id)}
+                    isSyncing={isSyncing(task.id)}
                     starsTarget={getStarsTarget(task.sync_config?.repository)}
                   />
                 ))}
@@ -230,11 +166,7 @@ export function AllTasks() {
         open={!!editingTask}
         task={editingTask}
         onClose={() => setEditingTask(null)}
-        onSave={(updates) => {
-          if (editingTask) {
-            updateTask(editingTask.id, updates);
-          }
-        }}
+        onSave={handleEditSave}
       />
     </div>
   );

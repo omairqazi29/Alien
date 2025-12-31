@@ -7,11 +7,11 @@ import { EditTaskModal } from '../components/EditTaskModal';
 import { AIGrader } from '../components/AIGrader';
 import { EvidenceEditor } from '../components/EvidenceEditor';
 import { PolicyGuidance } from '../components/PolicyGuidance';
+import { LoadingSpinner } from '../components/ui';
 import { useTasks, useGrade, useEvidence } from '../hooks/useData';
-import { useGitHubConfig } from '../hooks/useGitHub';
+import { useTaskActions } from '../hooks/useTaskActions';
 import { EB1A_CRITERIA } from '../types';
-import { github } from '../lib/github';
-import type { Task, TaskStatus, CriteriaId, AIGrade } from '../types';
+import type { CriteriaId, AIGrade } from '../types';
 
 export function CriteriaDetail() {
   const { id } = useParams<{ id: string }>();
@@ -19,20 +19,21 @@ export function CriteriaDetail() {
   const { tasks, loading: tasksLoading, addTask, updateTask, deleteTask } = useTasks(id as CriteriaId);
   const { grade, setGrade, loading: gradeLoading } = useGrade(id as CriteriaId);
   const { content: initialEvidenceContent, loading: evidenceLoading } = useEvidence(id as CriteriaId);
-  const { repos } = useGitHubConfig();
   const [evidenceContent, setEvidenceContent] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [syncingTasks, setSyncingTasks] = useState<Set<string>>(new Set());
+
+  const {
+    editingTask,
+    setEditingTask,
+    getStarsTarget,
+    isSyncing,
+    handleSync,
+    handleStatusChange,
+    handleDelete,
+    handleEditSave,
+  } = useTaskActions({ tasks, updateTask, deleteTask });
 
   const criteria = EB1A_CRITERIA.find(c => c.id === id);
-
-  // Get stars target for a task based on its connected repo
-  const getStarsTarget = (repoFullName?: string): number | undefined => {
-    if (!repoFullName) return undefined;
-    const repo = repos.find(r => r.full_name === repoFullName);
-    return repo?.stars_threshold;
-  };
 
   // Sync evidence content from DB on initial load
   useEffect(() => {
@@ -58,11 +59,7 @@ export function CriteriaDetail() {
   }
 
   if (tasksLoading || gradeLoading || evidenceLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   const handleAddTask = (taskData: {
@@ -82,67 +79,6 @@ export function CriteriaDetail() {
       sync_source: taskData.sync_source,
       sync_config: taskData.sync_config,
       status: 'not_started',
-    });
-  };
-
-  const handleStatusChange = (taskId: string, status: TaskStatus) => {
-    updateTask(taskId, { status });
-  };
-
-  const handleDeleteTask = (taskId: string) => {
-    deleteTask(taskId);
-  };
-
-  const handleSync = async (taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    setSyncingTasks(prev => new Set(prev).add(taskId));
-
-    let evidence = '';
-    let shouldComplete = false;
-    try {
-      switch (task.sync_source) {
-        case 'github_stars': {
-          const repoFullName = task.sync_config?.repository;
-          if (repoFullName) {
-            const [owner, repo] = repoFullName.split('/');
-            const metrics = await github.getRepoMetrics(owner, repo);
-            evidence = `Repository has ${metrics.stars.toLocaleString()} stars`;
-            // Check if target is met
-            const target = getStarsTarget(repoFullName);
-            shouldComplete = target ? metrics.stars >= target : false;
-          } else {
-            evidence = 'No repository configured';
-          }
-          break;
-        }
-        case 'github_contributions':
-          evidence = `GitHub contributions (connect in Settings to sync)`;
-          break;
-        case 'google_scholar':
-          evidence = `Google Scholar citations (integration coming soon)`;
-          break;
-        default:
-          evidence = 'Data synced successfully';
-      }
-    } catch (error) {
-      evidence = `Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-    }
-
-    // Only mark as completed if target is met, otherwise mark as in_progress
-    const newStatus = shouldComplete ? 'completed' : 'in_progress';
-
-    updateTask(taskId, {
-      evidence,
-      last_synced: new Date().toISOString(),
-      status: newStatus,
-    });
-
-    setSyncingTasks(prev => {
-      const next = new Set(prev);
-      next.delete(taskId);
-      return next;
     });
   };
 
@@ -240,8 +176,8 @@ export function CriteriaDetail() {
               onStatusChange={(status) => handleStatusChange(task.id, status)}
               onSync={task.type === 'sync' ? () => handleSync(task.id) : undefined}
               onEdit={() => setEditingTask(task)}
-              onDelete={() => handleDeleteTask(task.id)}
-              isSyncing={syncingTasks.has(task.id)}
+              onDelete={() => handleDelete(task.id)}
+              isSyncing={isSyncing(task.id)}
               starsTarget={getStarsTarget(task.sync_config?.repository)}
             />
           ))}
@@ -258,11 +194,7 @@ export function CriteriaDetail() {
         open={!!editingTask}
         task={editingTask}
         onClose={() => setEditingTask(null)}
-        onSave={(updates) => {
-          if (editingTask) {
-            updateTask(editingTask.id, updates);
-          }
-        }}
+        onSave={handleEditSave}
       />
     </div>
   );

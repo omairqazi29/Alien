@@ -6,3 +6,4 @@ export { Alert } from './Alert';
 export { Badge } from './Badge';
 export { Card, CardHeader } from './Card';
 export { Spinner } from './Spinner';
+export { LoadingSpinner } from './LoadingSpinner';
