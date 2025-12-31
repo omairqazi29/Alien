@@ -6,10 +6,10 @@ const BEDROCK_ENDPOINT = `https://bedrock-runtime.${AWS_REGION}.amazonaws.com`;
 
 interface GradeRequest {
   criteriaId: string;
-  criteriaName: string;
-  criteriaDescription: string;
+  officialTitle: string;
   policyDetails: string;
   evidenceContent: string;
+  exhibitsContent: string;
   assumeEvidenceExists: boolean;
 }
 
@@ -53,30 +53,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { criteriaId, criteriaName, criteriaDescription, policyDetails, evidenceContent, assumeEvidenceExists } = req.body as GradeRequest;
+    const { officialTitle, policyDetails, evidenceContent, exhibitsContent, assumeEvidenceExists } = req.body as GradeRequest;
 
     if (!evidenceContent || !evidenceContent.trim()) {
       return res.status(400).json({ error: 'No evidence content provided. Please add petition evidence before grading.' });
     }
 
-    const assumeNote = assumeEvidenceExists
-      ? `\n\n**IMPORTANT**: The applicant has indicated that all exhibits and supporting documents referenced in the evidence documentation exist and are available. Evaluate the evidence assuming these documents are properly attached to the petition.`
-      : `\n\n**NOTE**: Evaluate only what is explicitly described in the evidence documentation. If exhibits or supporting documents are referenced but not described in detail, note this as a gap.`;
+    let assumeNote = '';
+    let exhibitsSection = '';
+
+    if (assumeEvidenceExists) {
+      assumeNote = `\n\n**IMPORTANT**: The applicant has indicated that all exhibits and supporting documents referenced in the evidence documentation exist and are available. Evaluate the evidence assuming these documents are properly attached to the petition.`;
+    } else {
+      if (exhibitsContent && exhibitsContent.trim()) {
+        exhibitsSection = `\n\n## Attached Exhibits (Extracted Text)\nThe following exhibits have been attached and their content extracted for your review:\n\n${exhibitsContent}`;
+        assumeNote = `\n\n**NOTE**: The above exhibits have been provided. Evaluate both the petition text and the exhibit content together.`;
+      } else {
+        assumeNote = `\n\n**NOTE**: No exhibits have been attached. Evaluate only what is explicitly described in the evidence documentation. If exhibits or supporting documents are referenced but not provided, note this as a gap.`;
+      }
+    }
 
     const userPrompt = `
 ## Criterion Being Evaluated
-**${criteriaName}** (ID: ${criteriaId})
-${criteriaDescription}
+${officialTitle}
 
 ## USCIS Policy Manual Guidance
 ${policyDetails}
 
 ## Evidence Documentation
-${evidenceContent}
+${evidenceContent}${exhibitsSection}
 ${assumeNote}
 
 ## Your Task
-Evaluate this evidence for the "${criteriaName}" criterion. Apply the USCIS Policy Manual guidance provided above in your assessment. Consider whether this evidence would convince a USCIS officer that the applicant has extraordinary ability at a national or international level.
+Evaluate this evidence for the above criterion. Apply the USCIS Policy Manual guidance in your assessment. Consider whether this evidence would convince a USCIS officer that the applicant has extraordinary ability at a national or international level.
 
 Respond with a JSON object containing:
 - "grade": one of "strong", "moderate", "weak", "insufficient"
@@ -121,8 +130,25 @@ JSON Response:`;
       return responseBody.output?.message?.content?.[0]?.text || '';
     }
 
-    // Grade with Claude Sonnet via Bedrock
-    async function gradeWithClaude(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
+    // Grade with Claude Opus 4 via Bedrock
+    async function gradeWithClaudeOpus(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
+      const textContent = await callBedrockConverse(
+        'anthropic.claude-opus-4-5-20251101-v1:0',
+        SYSTEM_PROMPT,
+        userPrompt
+      );
+
+      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('Failed to parse Claude Opus response');
+
+      const gradeResult: SingleGradeResponse = JSON.parse(jsonMatch[0]);
+      validateGrade(gradeResult);
+
+      return { model: 'claude-opus-4', modelName: 'Claude Opus 4', ...gradeResult };
+    }
+
+    // Grade with Claude Sonnet 4.5 via Bedrock
+    async function gradeWithClaudeSonnet45(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
       const textContent = await callBedrockConverse(
         'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
         SYSTEM_PROMPT,
@@ -130,12 +156,29 @@ JSON Response:`;
       );
 
       const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Failed to parse Claude response');
+      if (!jsonMatch) throw new Error('Failed to parse Claude Sonnet 4.5 response');
 
       const gradeResult: SingleGradeResponse = JSON.parse(jsonMatch[0]);
       validateGrade(gradeResult);
 
       return { model: 'claude-sonnet-4-5', modelName: 'Claude Sonnet 4.5', ...gradeResult };
+    }
+
+    // Grade with Claude Sonnet 3.5 via Bedrock
+    async function gradeWithClaudeSonnet35(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
+      const textContent = await callBedrockConverse(
+        'anthropic.claude-3-5-sonnet-20241022-v2:0',
+        SYSTEM_PROMPT,
+        userPrompt
+      );
+
+      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('Failed to parse Claude Sonnet 3.5 response');
+
+      const gradeResult: SingleGradeResponse = JSON.parse(jsonMatch[0]);
+      validateGrade(gradeResult);
+
+      return { model: 'claude-sonnet-3-5', modelName: 'Claude Sonnet 3.5', ...gradeResult };
     }
 
     // Grade with Meta Llama via Bedrock
@@ -164,13 +207,15 @@ JSON Response:`;
       }
     }
 
-    // Run both models in parallel
-    const [claudeGrade, llamaGrade] = await Promise.all([
-      gradeWithClaude(),
+    // Run all models in parallel
+    const [opusGrade, sonnet45Grade, sonnet35Grade, llamaGrade] = await Promise.all([
+      gradeWithClaudeOpus(),
+      gradeWithClaudeSonnet45(),
+      gradeWithClaudeSonnet35(),
       gradeWithLlama(),
     ]);
 
-    return res.status(200).json({ grades: [claudeGrade, llamaGrade] });
+    return res.status(200).json({ grades: [opusGrade, sonnet45Grade, sonnet35Grade, llamaGrade] });
   } catch (error) {
     console.error('Grading error:', error);
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');

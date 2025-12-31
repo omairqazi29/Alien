@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Task, CriteriaId, AIGrade, GitHubRepoConfig } from '../types';
+import type { Task, CriteriaId, AIGrade, GitHubRepoConfig, Exhibit } from '../types';
 
 export const db = {
   // Profile / Criteria Selection
@@ -344,5 +344,110 @@ export const db = {
       .eq('criteria_id', criteriaId);
 
     if (error) throw error;
+  },
+
+  // Exhibits (file uploads)
+  async getExhibits(userId: string, criteriaId: CriteriaId): Promise<Exhibit[]> {
+    const { data, error } = await supabase
+      .from('exhibits')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('criteria_id', criteriaId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching exhibits:', error);
+      return [];
+    }
+    return (data || []) as Exhibit[];
+  },
+
+  async uploadExhibit(
+    userId: string,
+    criteriaId: CriteriaId,
+    file: File,
+    label: string
+  ): Promise<Exhibit> {
+    // Upload file to storage
+    const filePath = `${userId}/${criteriaId}/${Date.now()}-${file.name}`;
+    const { error: uploadError } = await supabase.storage
+      .from('exhibits')
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    // Create exhibit record
+    const { data, error } = await supabase
+      .from('exhibits')
+      .insert({
+        user_id: userId,
+        criteria_id: criteriaId,
+        label,
+        file_name: file.name,
+        file_path: filePath,
+        file_type: file.type,
+        file_size: file.size,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as Exhibit;
+  },
+
+  async updateExhibitLabel(exhibitId: string, label: string): Promise<void> {
+    const { error } = await supabase
+      .from('exhibits')
+      .update({ label, updated_at: new Date().toISOString() })
+      .eq('id', exhibitId);
+
+    if (error) throw error;
+  },
+
+  async updateExhibitText(exhibitId: string, extractedText: string): Promise<void> {
+    const { error } = await supabase
+      .from('exhibits')
+      .update({ extracted_text: extractedText, updated_at: new Date().toISOString() })
+      .eq('id', exhibitId);
+
+    if (error) throw error;
+  },
+
+  async deleteExhibit(exhibitId: string, filePath: string): Promise<void> {
+    // Delete from storage
+    const { error: storageError } = await supabase.storage
+      .from('exhibits')
+      .remove([filePath]);
+
+    if (storageError) console.error('Error deleting file from storage:', storageError);
+
+    // Delete record
+    const { error } = await supabase
+      .from('exhibits')
+      .delete()
+      .eq('id', exhibitId);
+
+    if (error) throw error;
+  },
+
+  async getExhibitUrl(filePath: string): Promise<string> {
+    const { data } = await supabase.storage
+      .from('exhibits')
+      .createSignedUrl(filePath, 3600); // 1 hour expiry
+
+    return data?.signedUrl || '';
+  },
+
+  // Get all exhibit text for AI grading
+  async getExhibitsTextForGrading(userId: string, criteriaId: CriteriaId): Promise<string> {
+    const exhibits = await this.getExhibits(userId, criteriaId);
+    if (exhibits.length === 0) return '';
+
+    const exhibitTexts = exhibits
+      .filter(e => e.extracted_text)
+      .map(e => `[Exhibit ${e.label}: ${e.file_name}]\n${e.extracted_text}`)
+      .join('\n\n---\n\n');
+
+    return exhibitTexts;
   },
 };

@@ -78,6 +78,20 @@ export interface GitHubRepoConfig {
   last_synced?: string;
 }
 
+export interface Exhibit {
+  id: string;
+  user_id: string;
+  criteria_id: CriteriaId;
+  label: string; // e.g., "A-1", "B-2"
+  file_name: string;
+  file_path: string; // path in storage bucket
+  file_type: string; // MIME type
+  file_size: number;
+  extracted_text?: string; // text extracted from PDF/images
+  created_at: string;
+  updated_at: string;
+}
+
 export interface UserProfile {
   id: string;
   selected_criteria: CriteriaId[];

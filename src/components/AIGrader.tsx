@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Sparkles, AlertTriangle, CheckCircle, XCircle, HelpCircle } from 'lucide-react';
 import { gradeEvidence } from '../lib/ai';
-import { useCriteriaPolicy, useAssumeEvidenceExists } from '../hooks/useData';
+import { useCriteriaPolicy, useAssumeEvidenceExists, useExhibits } from '../hooks/useData';
 import { Button, Alert, Card } from './ui';
 import type { AIGrade, CriteriaId, GradeLevel, ModelGrade } from '../types';
 
@@ -69,6 +69,7 @@ export function AIGrader({ criteriaId, evidenceContent, existingGrade, onGrade }
   const [error, setError] = useState<string | null>(null);
   const { policyDetails } = useCriteriaPolicy(criteriaId);
   const { assumeExists } = useAssumeEvidenceExists(criteriaId);
+  const { exhibits } = useExhibits(criteriaId);
 
   const handleGrade = async () => {
     if (!evidenceContent || !evidenceContent.trim()) {
@@ -80,7 +81,17 @@ export function AIGrader({ criteriaId, evidenceContent, existingGrade, onGrade }
     setError(null);
 
     try {
-      const result = await gradeEvidence(criteriaId, evidenceContent, policyDetails, assumeExists);
+      // Build exhibits content from extracted text (only when not assuming exhibits exist)
+      let exhibitsContent = '';
+      if (!assumeExists && exhibits.length > 0) {
+        const exhibitTexts = exhibits
+          .filter(e => e.extracted_text)
+          .map(e => `[Exhibit ${e.label}: ${e.file_name}]\n${e.extracted_text}`)
+          .join('\n\n---\n\n');
+        exhibitsContent = exhibitTexts;
+      }
+
+      const result = await gradeEvidence(criteriaId, evidenceContent, policyDetails, assumeExists, exhibitsContent);
 
       const aiGrade: AIGrade = {
         id: `grade-${criteriaId}-${Date.now()}`,

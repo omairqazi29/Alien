@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/database';
-import type { Task, CriteriaId, AIGrade } from '../types';
+import type { Task, CriteriaId, AIGrade, Exhibit } from '../types';
+import { extractTextFromFile } from '../lib/ai';
 
 // Hook for selected criteria
 export function useSelectedCriteria() {
@@ -229,4 +230,109 @@ export function useAssumeEvidenceExists(criteriaId: CriteriaId) {
   }, [user, criteriaId]);
 
   return { assumeExists, setAssumeExists: saveAssumeExists, loading };
+}
+
+// Hook for exhibits (file uploads)
+export function useExhibits(criteriaId: CriteriaId) {
+  const { user } = useAuth();
+  const [exhibits, setExhibits] = useState<Exhibit[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const data = await db.getExhibits(user.id, criteriaId);
+        setExhibits(data);
+      } catch (error) {
+        console.error('Failed to load exhibits:', error);
+      }
+      setLoading(false);
+    }
+    load();
+  }, [user, criteriaId]);
+
+  const uploadExhibit = useCallback(async (file: File, label: string) => {
+    if (!user) return null;
+    setUploading(true);
+    try {
+      const newExhibit = await db.uploadExhibit(user.id, criteriaId, file, label);
+      setExhibits(prev => [...prev, newExhibit]);
+
+      // Trigger text extraction in the background
+      extractExhibitText(newExhibit);
+
+      return newExhibit;
+    } catch (error) {
+      console.error('Failed to upload exhibit:', error);
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  }, [user, criteriaId]);
+
+  const extractExhibitText = useCallback(async (exhibit: Exhibit) => {
+    try {
+      // Get signed URL for the file
+      const fileUrl = await db.getExhibitUrl(exhibit.file_path);
+      if (!fileUrl) return;
+
+      // Extract text from the file
+      const extractedText = await extractTextFromFile(fileUrl, exhibit.file_type, exhibit.file_name);
+
+      // Update the exhibit with extracted text
+      await db.updateExhibitText(exhibit.id, extractedText);
+
+      // Update local state
+      setExhibits(prev =>
+        prev.map(e => e.id === exhibit.id ? { ...e, extracted_text: extractedText } : e)
+      );
+    } catch (error) {
+      console.error('Failed to extract text from exhibit:', error);
+    }
+  }, []);
+
+  const updateLabel = useCallback(async (exhibitId: string, label: string) => {
+    if (!user) return;
+    setExhibits(prev =>
+      prev.map(e => e.id === exhibitId ? { ...e, label } : e)
+    );
+    try {
+      await db.updateExhibitLabel(exhibitId, label);
+    } catch (error) {
+      console.error('Failed to update exhibit label:', error);
+    }
+  }, [user]);
+
+  const deleteExhibit = useCallback(async (exhibitId: string) => {
+    if (!user) return;
+    const exhibit = exhibits.find(e => e.id === exhibitId);
+    if (!exhibit) return;
+
+    setExhibits(prev => prev.filter(e => e.id !== exhibitId));
+    try {
+      await db.deleteExhibit(exhibitId, exhibit.file_path);
+    } catch (error) {
+      console.error('Failed to delete exhibit:', error);
+    }
+  }, [user, exhibits]);
+
+  const getExhibitUrl = useCallback(async (filePath: string) => {
+    return await db.getExhibitUrl(filePath);
+  }, []);
+
+  return {
+    exhibits,
+    loading,
+    uploading,
+    uploadExhibit,
+    updateLabel,
+    deleteExhibit,
+    getExhibitUrl,
+    extractExhibitText,
+  };
 }

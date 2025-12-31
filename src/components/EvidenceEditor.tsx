@@ -1,14 +1,7 @@
 import { useState, useRef } from 'react';
-import { FileText, Edit3, Save, Upload, X, FileCheck, ToggleLeft, ToggleRight } from 'lucide-react';
-import { useEvidence, useAssumeEvidenceExists } from '../hooks/useData';
-import type { CriteriaId } from '../types';
-
-interface Exhibit {
-  id: string;
-  name: string;
-  file?: File;
-  label: string; // e.g., "A-1", "B-2"
-}
+import { FileText, Edit3, Save, Upload, X, FileCheck, ToggleLeft, ToggleRight, Loader2, ExternalLink, RefreshCw } from 'lucide-react';
+import { useEvidence, useAssumeEvidenceExists, useExhibits } from '../hooks/useData';
+import type { CriteriaId, Exhibit } from '../types';
 
 interface EvidenceEditorProps {
   criteriaId: CriteriaId;
@@ -18,11 +11,21 @@ interface EvidenceEditorProps {
 export function EvidenceEditor({ criteriaId, criteriaName }: EvidenceEditorProps) {
   const { content, setContent: saveContent, loading } = useEvidence(criteriaId);
   const { assumeExists: assumeEvidenceExists, setAssumeExists: setAssumeEvidenceExists } = useAssumeEvidenceExists(criteriaId);
+  const {
+    exhibits,
+    loading: exhibitsLoading,
+    uploading,
+    uploadExhibit,
+    updateLabel,
+    deleteExhibit,
+    getExhibitUrl,
+    extractExhibitText,
+  } = useExhibits(criteriaId);
   const [localContent, setLocalContent] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaved, setIsSaved] = useState(true);
   const [initialized, setInitialized] = useState(false);
-  const [exhibits, setExhibits] = useState<Exhibit[]>([]);
+  const [processingExhibits, setProcessingExhibits] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync local content with loaded content
@@ -42,32 +45,39 @@ export function EvidenceEditor({ criteriaId, criteriaName }: EvidenceEditorProps
     setIsSaved(false);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
-    const newExhibits: Exhibit[] = Array.from(files).map((file, index) => ({
-      id: `${Date.now()}-${index}`,
-      name: file.name,
-      file,
-      label: `${criteriaId.charAt(0).toUpperCase()}-${exhibits.length + index + 1}`,
-    }));
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const label = `${criteriaId.charAt(0).toUpperCase()}-${exhibits.length + i + 1}`;
+      await uploadExhibit(file, label);
+    }
 
-    setExhibits([...exhibits, ...newExhibits]);
-    setIsSaved(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  const removeExhibit = (id: string) => {
-    setExhibits(exhibits.filter(e => e.id !== id));
-    setIsSaved(false);
+  const handleOpenExhibit = async (filePath: string) => {
+    const url = await getExhibitUrl(filePath);
+    if (url) {
+      window.open(url, '_blank');
+    }
   };
 
-  const updateExhibitLabel = (id: string, label: string) => {
-    setExhibits(exhibits.map(e => e.id === id ? { ...e, label } : e));
-    setIsSaved(false);
+  const handleProcessExhibit = async (exhibit: Exhibit) => {
+    setProcessingExhibits(prev => new Set(prev).add(exhibit.id));
+    try {
+      await extractExhibitText(exhibit);
+    } finally {
+      setProcessingExhibits(prev => {
+        const next = new Set(prev);
+        next.delete(exhibit.id);
+        return next;
+      });
+    }
   };
 
   const placeholder = `Paste your petition evidence for ${criteriaName} here...
@@ -159,10 +169,12 @@ The feature in TechBullion constitutes compelling evidence that published materi
           )}
           <div>
             <span className={`text-sm font-medium ${assumeEvidenceExists ? 'text-emerald-400' : 'text-gray-400'}`}>
-              Assume evidence exists
+              Trust referenced exhibits
             </span>
             <p className="text-xs text-gray-500">
-              Grade based on written description only, without requiring attached exhibits
+              {assumeEvidenceExists
+                ? 'ON: AI will assume all referenced exhibits exist and are properly attached'
+                : 'OFF: Upload exhibits below for AI to analyze their content'}
             </p>
           </div>
         </button>
@@ -176,9 +188,13 @@ The feature in TechBullion constitutes compelling evidence that published materi
               <FileCheck className="w-4 h-4 text-blue-400" />
               Attached Exhibits
             </h4>
-            <label className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors text-sm cursor-pointer">
-              <Upload className="w-4 h-4" />
-              Upload
+            <label className={`flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors text-sm cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+              {uploading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4" />
+              )}
+              {uploading ? 'Uploading...' : 'Upload'}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -186,13 +202,18 @@ The feature in TechBullion constitutes compelling evidence that published materi
                 onChange={handleFileUpload}
                 className="hidden"
                 accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                disabled={uploading}
               />
             </label>
           </div>
 
-          {exhibits.length === 0 ? (
+          {exhibitsLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : exhibits.length === 0 ? (
             <p className="text-xs text-gray-500 text-center py-4">
-              No exhibits attached. Upload PDFs, images, or documents that support this criterion.
+              No exhibits attached. Upload PDFs or images to include in AI analysis.
             </p>
           ) : (
             <div className="space-y-2">
@@ -204,13 +225,38 @@ The feature in TechBullion constitutes compelling evidence that published materi
                   <input
                     type="text"
                     value={exhibit.label}
-                    onChange={(e) => updateExhibitLabel(exhibit.id, e.target.value)}
+                    onChange={(e) => updateLabel(exhibit.id, e.target.value)}
                     className="w-16 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-gray-300 focus:outline-none focus:border-blue-500"
                     placeholder="A-1"
                   />
-                  <span className="flex-1 text-sm text-gray-400 truncate">{exhibit.name}</span>
                   <button
-                    onClick={() => removeExhibit(exhibit.id)}
+                    onClick={() => handleOpenExhibit(exhibit.file_path)}
+                    className="flex-1 text-sm text-gray-400 truncate text-left hover:text-blue-400 flex items-center gap-1"
+                  >
+                    {exhibit.file_name}
+                    <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                  </button>
+                  <span className="text-xs text-gray-600">
+                    {(exhibit.file_size / 1024).toFixed(0)}KB
+                  </span>
+                  {processingExhibits.has(exhibit.id) ? (
+                    <span className="text-xs text-blue-400 flex items-center gap-1">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Processing
+                    </span>
+                  ) : exhibit.extracted_text ? (
+                    <span className="text-xs text-emerald-500">Processed</span>
+                  ) : (
+                    <button
+                      onClick={() => handleProcessExhibit(exhibit)}
+                      className="text-xs text-yellow-500 hover:text-yellow-400 flex items-center gap-1"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Process
+                    </button>
+                  )}
+                  <button
+                    onClick={() => deleteExhibit(exhibit.id)}
                     className="p-1 text-gray-500 hover:text-red-400 transition-colors"
                   >
                     <X className="w-4 h-4" />
@@ -226,8 +272,17 @@ The feature in TechBullion constitutes compelling evidence that published materi
         <div className="px-4 pb-4 pt-2 border-t border-gray-700">
           <p className="text-xs text-gray-500">
             {assumeEvidenceExists
-              ? 'The AI grader will evaluate your petition text and assume all referenced exhibits exist.'
-              : 'Paste your petition text directly. The AI grader will evaluate this evidence as a USCIS immigration officer would.'}
+              ? 'AI will trust that all exhibits and attachments referenced in your text exist and are properly attached to the petition.'
+              : exhibits.length > 0
+                ? (() => {
+                    const processedCount = exhibits.filter(e => e.extracted_text).length;
+                    const pendingCount = exhibits.length - processedCount;
+                    if (pendingCount > 0) {
+                      return `${processedCount} of ${exhibits.length} exhibit(s) processed. Process remaining exhibits before grading for full analysis.`;
+                    }
+                    return `AI will analyze your petition text plus ${exhibits.length} processed exhibit(s).`;
+                  })()
+                : 'AI will only evaluate based on what is explicitly written. Upload exhibits above for full analysis.'}
           </p>
         </div>
       )}

@@ -3,10 +3,10 @@ import { EB1A_CRITERIA } from '../types';
 
 interface GradeRequest {
   criteriaId: CriteriaId;
-  criteriaName: string;
-  criteriaDescription: string;
+  officialTitle: string;
   policyDetails: string;
   evidenceContent: string;
+  exhibitsContent: string;
   assumeEvidenceExists: boolean;
 }
 
@@ -14,11 +14,18 @@ interface GradeResponse {
   grades: ModelGrade[];
 }
 
+interface ExtractTextResponse {
+  extractedText: string;
+  fileName: string;
+  fileType: string;
+}
+
 export async function gradeEvidence(
   criteriaId: CriteriaId,
   evidenceContent: string,
   policyDetails: string,
-  assumeEvidenceExists: boolean
+  assumeEvidenceExists: boolean,
+  exhibitsContent: string = ''
 ): Promise<GradeResponse> {
   const criteria = EB1A_CRITERIA.find(c => c.id === criteriaId);
 
@@ -28,10 +35,10 @@ export async function gradeEvidence(
 
   const request: GradeRequest = {
     criteriaId,
-    criteriaName: criteria.name,
-    criteriaDescription: `${criteria.officialTitle}\n\n${criteria.description}\n\nKey Guidance: ${criteria.keyGuidance}`,
+    officialTitle: criteria.officialTitle,
     policyDetails,
     evidenceContent,
+    exhibitsContent,
     assumeEvidenceExists,
   };
 
@@ -51,4 +58,27 @@ export async function gradeEvidence(
   }
 
   return response.json();
+}
+
+export async function extractTextFromFile(
+  fileUrl: string,
+  fileType: string,
+  fileName: string
+): Promise<string> {
+  const response = await fetch('/api/extract-text', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fileUrl, fileType, fileName }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    console.error('Extract text API error:', error);
+    throw new Error(error.details || error.error || 'Failed to extract text');
+  }
+
+  const data: ExtractTextResponse = await response.json();
+  return data.extractedText;
 }
