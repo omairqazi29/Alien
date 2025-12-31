@@ -15,22 +15,47 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const GITHUB_TOKEN_KEY = 'alien_github_token';
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [storedGitHubToken, setStoredGitHubToken] = useState<string | null>(() => {
+    return localStorage.getItem(GITHUB_TOKEN_KEY);
+  });
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+
+      // Capture GitHub token from OAuth callback
+      if (session?.provider_token) {
+        localStorage.setItem(GITHUB_TOKEN_KEY, session.provider_token);
+        setStoredGitHubToken(session.provider_token);
+      }
+
       setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
+
+        // Capture GitHub token on sign in
+        if (event === 'SIGNED_IN' && session?.provider_token) {
+          localStorage.setItem(GITHUB_TOKEN_KEY, session.provider_token);
+          setStoredGitHubToken(session.provider_token);
+        }
+
+        // Clear token on sign out
+        if (event === 'SIGNED_OUT') {
+          localStorage.removeItem(GITHUB_TOKEN_KEY);
+          setStoredGitHubToken(null);
+        }
+
         setLoading(false);
       }
     );
@@ -64,8 +89,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   };
 
-  // Extract GitHub token from session
-  const gitHubToken = session?.provider_token || null;
+  // Use stored GitHub token (provider_token is only available immediately after OAuth)
+  const gitHubToken = session?.provider_token || storedGitHubToken;
 
   return (
     <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signOut, signInWithGitHub, gitHubToken }}>
