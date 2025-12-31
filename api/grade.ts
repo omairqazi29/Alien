@@ -129,7 +129,7 @@ JSON Response:`;
     // Grade with Claude Sonnet via Bedrock
     async function gradeWithClaude(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
       const textContent = await callBedrockConverse(
-        'us.anthropic.claude-sonnet-4-5-20250514-v1:0',
+        'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
         SYSTEM_PROMPT,
         userPrompt
       );
@@ -146,7 +146,7 @@ JSON Response:`;
     // Grade with Meta Llama via Bedrock
     async function gradeWithLlama(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
       const textContent = await callBedrockConverse(
-        'us.meta.llama3-3-70b-instruct-v1:0',
+        'meta.llama3-3-70b-instruct-v1:0',
         SYSTEM_PROMPT,
         userPrompt
       );
@@ -194,7 +194,12 @@ JSON Response:`;
 
     return res.status(500).json({
       error: 'Failed to grade evidence',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: error instanceof Error ? error.message : 'Unknown error',
+      debug: {
+        hasApiKey: !!BEDROCK_API_KEY,
+        region: AWS_REGION,
+        endpoint: BEDROCK_ENDPOINT,
+      }
     });
   }
 }

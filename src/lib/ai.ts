@@ -57,7 +57,9 @@ export async function gradeEvidence(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(error.error || 'Failed to grade evidence');
+    const errorMsg = error.details || error.error || 'Failed to grade evidence';
+    console.error('Grade API error:', error);
+    throw new Error(errorMsg);
   }
 
   return response.json();
