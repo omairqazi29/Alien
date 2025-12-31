@@ -27,7 +27,7 @@ export function CriteriaDetail() {
 
   if (!criteria) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[50vh]">
         <div className="text-center">
           <h1 className="text-xl font-bold text-white mb-2">Criteria not found</h1>
           <button
@@ -130,95 +130,92 @@ export function CriteriaDetail() {
   const completedCount = tasks.filter(t => t.status === 'completed').length;
 
   return (
-    <div className="min-h-screen bg-gray-900">
-      <header className="bg-gray-800 border-b border-gray-700">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-gray-400 hover:text-white mb-4 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Dashboard
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-white">{criteria.name}</h1>
-            <p className="text-gray-400 mt-1">{criteria.description}</p>
-          </div>
-        </div>
-      </header>
+    <div>
+      {/* Breadcrumb */}
+      <button
+        onClick={() => navigate('/criteria')}
+        className="flex items-center gap-2 text-gray-400 hover:text-white mb-4 transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Back to Criteria
+      </button>
 
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        {/* Progress */}
-        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-400">Progress</span>
-            <span className="text-white font-medium">
-              {completedCount}/{tasks.length} tasks completed
-            </span>
-          </div>
-          <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-emerald-500 transition-all duration-300"
-              style={{ width: tasks.length > 0 ? `${(completedCount / tasks.length) * 100}%` : '0%' }}
-            />
-          </div>
-        </div>
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-white">{criteria.name}</h1>
+        <p className="text-gray-400 mt-1">{criteria.description}</p>
+      </div>
 
-        {/* AI Grader */}
-        <div className="mb-6">
-          <AIGrader
-            criteriaId={id as CriteriaId}
-            criteriaName={criteria.name}
-            tasks={tasks}
-            existingGrade={grade}
-            onGrade={handleGrade}
+      {/* Progress */}
+      <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-gray-400">Progress</span>
+          <span className="text-white font-medium">
+            {completedCount}/{tasks.length} tasks completed
+          </span>
+        </div>
+        <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-emerald-500 transition-all duration-300"
+            style={{ width: tasks.length > 0 ? `${(completedCount / tasks.length) * 100}%` : '0%' }}
           />
         </div>
+      </div>
 
-        {/* Tasks */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">Tasks & Evidence</h2>
+      {/* AI Grader */}
+      <div className="mb-6">
+        <AIGrader
+          criteriaId={id as CriteriaId}
+          criteriaName={criteria.name}
+          tasks={tasks}
+          existingGrade={grade}
+          onGrade={handleGrade}
+        />
+      </div>
+
+      {/* Tasks */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-white">Tasks & Evidence</h2>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Add Task
+        </button>
+      </div>
+
+      {tasks.length === 0 ? (
+        <div className="text-center py-12 bg-gray-800 rounded-lg border border-gray-700">
+          <p className="text-gray-400 mb-4">No tasks yet for this criteria</p>
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors"
+            className="text-emerald-400 hover:text-emerald-300"
           >
-            <Plus className="w-4 h-4" />
-            Add Task
+            Add your first task
           </button>
         </div>
+      ) : (
+        <div className="space-y-3">
+          {tasks.map(task => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              onStatusChange={(status) => handleStatusChange(task.id, status)}
+              onSync={task.type === 'sync' ? () => handleSync(task.id) : undefined}
+              onDelete={() => handleDeleteTask(task.id)}
+              isSyncing={syncingTasks.has(task.id)}
+            />
+          ))}
+        </div>
+      )}
 
-        {tasks.length === 0 ? (
-          <div className="text-center py-12 bg-gray-800 rounded-lg border border-gray-700">
-            <p className="text-gray-400 mb-4">No tasks yet for this criteria</p>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="text-emerald-400 hover:text-emerald-300"
-            >
-              Add your first task
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {tasks.map(task => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                onStatusChange={(status) => handleStatusChange(task.id, status)}
-                onSync={task.type === 'sync' ? () => handleSync(task.id) : undefined}
-                onDelete={() => handleDeleteTask(task.id)}
-                isSyncing={syncingTasks.has(task.id)}
-              />
-            ))}
-          </div>
-        )}
-
-        {showAddModal && (
-          <AddTaskModal
-            onClose={() => setShowAddModal(false)}
-            onAdd={handleAddTask}
-          />
-        )}
-      </main>
+      {showAddModal && (
+        <AddTaskModal
+          onClose={() => setShowAddModal(false)}
+          onAdd={handleAddTask}
+        />
+      )}
     </div>
   );
 }

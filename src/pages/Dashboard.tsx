@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Rocket, Target, CheckCircle2, AlertCircle } from 'lucide-react';
-import { CriteriaCard } from '../components/CriteriaCard';
+import { Target, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
 import { storage } from '../lib/storage';
 import { EB1A_CRITERIA } from '../types';
 import type { Criteria, CriteriaId, Task } from '../types';
@@ -24,17 +23,6 @@ export function Dashboard() {
     setTasks(allTasks);
   }, []);
 
-  const toggleCriteria = (id: CriteriaId) => {
-    setCriteria(prev => {
-      const updated = prev.map(c =>
-        c.id === id ? { ...c, selected: !c.selected } : c
-      );
-      const selectedIds = updated.filter(c => c.selected).map(c => c.id);
-      storage.setSelectedCriteria(selectedIds);
-      return updated;
-    });
-  };
-
   const selectedCriteria = criteria.filter(c => c.selected);
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.status === 'completed').length;
@@ -47,89 +35,118 @@ export function Dashboard() {
     };
   };
 
+  // Show onboarding if no criteria selected
+  if (selectedCriteria.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <div className="p-4 bg-emerald-500/20 rounded-full mb-6">
+          <Target className="w-12 h-12 text-emerald-400" />
+        </div>
+        <h1 className="text-3xl font-bold text-white mb-3">Welcome to The Alien Project</h1>
+        <p className="text-gray-400 max-w-md mb-8">
+          Start by selecting at least one EB-1A criterion you want to focus on.
+          You'll need to meet 3 out of 10 criteria to qualify.
+        </p>
+        <button
+          onClick={() => navigate('/criteria')}
+          className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors font-medium"
+        >
+          Select Criteria
+          <ArrowRight className="w-5 h-5" />
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-900">
-      <header className="bg-gray-800 border-b border-gray-700">
-        <div className="max-w-6xl mx-auto px-4 py-6">
+    <div>
+      {/* Stats Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-500/20 rounded-lg">
-              <Rocket className="w-8 h-8 text-emerald-400" />
-            </div>
+            <Target className="w-5 h-5 text-blue-400" />
             <div>
-              <h1 className="text-2xl font-bold text-white">The Alien Project</h1>
-              <p className="text-gray-400">EB-1A Preparation Dashboard</p>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <div className="flex items-center gap-3">
-              <Target className="w-5 h-5 text-blue-400" />
-              <div>
-                <p className="text-gray-400 text-sm">Criteria Selected</p>
-                <p className="text-2xl font-bold text-white">{selectedCriteria.length} / 10</p>
-                <p className="text-xs text-gray-500">Need 3+ for EB-1A</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-              <div>
-                <p className="text-gray-400 text-sm">Tasks Completed</p>
-                <p className="text-2xl font-bold text-white">{completedTasks} / {totalTasks}</p>
-                <p className="text-xs text-gray-500">
-                  {totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0}% complete
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <div className="flex items-center gap-3">
-              <AlertCircle className={`w-5 h-5 ${selectedCriteria.length >= 3 ? 'text-emerald-400' : 'text-yellow-400'}`} />
-              <div>
-                <p className="text-gray-400 text-sm">Status</p>
-                <p className="text-2xl font-bold text-white">
-                  {selectedCriteria.length >= 3 ? 'On Track' : 'Need More'}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {selectedCriteria.length >= 3 ? 'Meeting minimum criteria' : `Select ${3 - selectedCriteria.length} more criteria`}
-                </p>
-              </div>
+              <p className="text-gray-400 text-sm">Criteria Selected</p>
+              <p className="text-2xl font-bold text-white">{selectedCriteria.length} / 10</p>
+              <p className="text-xs text-gray-500">Need 3+ for EB-1A</p>
             </div>
           </div>
         </div>
 
-        {/* Criteria Selection */}
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold text-white mb-2">EB-1A Criteria</h2>
-          <p className="text-gray-400 mb-4">
-            Select the criteria you're targeting. You need to meet at least 3 out of 10.
-          </p>
+        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+            <div>
+              <p className="text-gray-400 text-sm">Tasks Completed</p>
+              <p className="text-2xl font-bold text-white">{completedTasks} / {totalTasks}</p>
+              <p className="text-xs text-gray-500">
+                {totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0}% complete
+              </p>
+            </div>
+          </div>
         </div>
 
+        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+          <div className="flex items-center gap-3">
+            <AlertCircle className={`w-5 h-5 ${selectedCriteria.length >= 3 ? 'text-emerald-400' : 'text-yellow-400'}`} />
+            <div>
+              <p className="text-gray-400 text-sm">Status</p>
+              <p className="text-2xl font-bold text-white">
+                {selectedCriteria.length >= 3 ? 'On Track' : 'Need More'}
+              </p>
+              <p className="text-xs text-gray-500">
+                {selectedCriteria.length >= 3 ? 'Meeting minimum criteria' : `Select ${3 - selectedCriteria.length} more criteria`}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Selected Criteria Progress */}
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold text-white mb-4">Your Focus Areas</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {criteria.map(c => {
+          {selectedCriteria.map(c => {
             const stats = getTaskStats(c.id);
+            const progress = stats.total > 0 ? (stats.completed / stats.total) * 100 : 0;
+
             return (
-              <CriteriaCard
+              <button
                 key={c.id}
-                criteria={c}
-                onToggle={() => toggleCriteria(c.id)}
-                onSelect={() => navigate(`/criteria/${c.id}`)}
-                taskCount={stats.total}
-                completedCount={stats.completed}
-              />
+                onClick={() => navigate(`/criteria/${c.id}`)}
+                className="bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-emerald-500/50 transition-all text-left"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-white">{c.name}</h3>
+                  <span className="text-sm text-gray-400">{stats.completed}/{stats.total} tasks</span>
+                </div>
+                <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500 transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </button>
             );
           })}
         </div>
-      </main>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="flex gap-3">
+        <button
+          onClick={() => navigate('/criteria')}
+          className="px-4 py-2 bg-gray-800 text-gray-300 rounded-lg border border-gray-700 hover:border-gray-600 transition-colors"
+        >
+          Manage Criteria
+        </button>
+        <button
+          onClick={() => navigate('/tasks')}
+          className="px-4 py-2 bg-gray-800 text-gray-300 rounded-lg border border-gray-700 hover:border-gray-600 transition-colors"
+        >
+          View All Tasks
+        </button>
+      </div>
     </div>
   );
 }
