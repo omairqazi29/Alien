@@ -6,7 +6,7 @@ import { AddTaskModal } from '../components/AddTaskModal';
 import { AIGrader } from '../components/AIGrader';
 import { EvidenceEditor } from '../components/EvidenceEditor';
 import { PolicyGuidance } from '../components/PolicyGuidance';
-import { useTasks, useGrade } from '../hooks/useData';
+import { useTasks, useGrade, useEvidence } from '../hooks/useData';
 import { EB1A_CRITERIA } from '../types';
 import type { TaskStatus, CriteriaId, AIGrade } from '../types';
 
@@ -15,6 +15,7 @@ export function CriteriaDetail() {
   const navigate = useNavigate();
   const { tasks, loading: tasksLoading, addTask, updateTask, deleteTask } = useTasks(id as CriteriaId);
   const { grade, setGrade, loading: gradeLoading } = useGrade(id as CriteriaId);
+  const { content: evidenceContent } = useEvidence(id as CriteriaId);
   const [showAddModal, setShowAddModal] = useState(false);
   const [syncingTasks, setSyncingTasks] = useState<Set<string>>(new Set());
 
@@ -165,8 +166,8 @@ export function CriteriaDetail() {
       <div className="mb-6">
         <AIGrader
           criteriaId={id as CriteriaId}
-          criteriaName={criteria.name}
           tasks={tasks}
+          evidenceContent={evidenceContent}
           existingGrade={grade || undefined}
           onGrade={handleGrade}
         />

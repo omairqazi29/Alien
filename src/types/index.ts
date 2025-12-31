@@ -53,13 +53,19 @@ export interface Task {
 
 export type GradeLevel = 'strong' | 'moderate' | 'weak' | 'insufficient';
 
-export interface AIGrade {
-  id: string;
-  criteria_id: CriteriaId;
+export interface ModelGrade {
+  model: string;
+  modelName: string;
   grade: GradeLevel;
   score: number; // 0-100
   feedback: string;
   suggestions: string[];
+}
+
+export interface AIGrade {
+  id: string;
+  criteria_id: CriteriaId;
+  grades: ModelGrade[];
   graded_at: string;
 }
 

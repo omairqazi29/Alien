@@ -176,10 +176,7 @@ export const db = {
       .upsert({
         user_id: userId,
         criteria_id: grade.criteria_id,
-        grade: grade.grade,
-        score: grade.score,
-        feedback: grade.feedback,
-        suggestions: grade.suggestions,
+        grades: grade.grades,
         graded_at: grade.graded_at,
       }, {
         onConflict: 'user_id,criteria_id'

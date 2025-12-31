@@ -12,6 +12,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.89.0",
     "@tailwindcss/postcss": "^4.1.18",
+    "@vercel/node": "^5.5.16",
     "autoprefixer": "^10.4.23",
     "lucide-react": "^0.562.0",
     "postcss": "^8.5.6",
