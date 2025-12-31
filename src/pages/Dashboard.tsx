@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Target, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
+import { Target, CheckCircle2, AlertCircle, ArrowRight, Clock } from 'lucide-react';
 import { useSelectedCriteria, useTasks } from '../hooks/useData';
 import { EB1A_CRITERIA } from '../types';
 import type { CriteriaId } from '../types';
@@ -12,6 +12,7 @@ export function Dashboard() {
   const selectedCriteria = EB1A_CRITERIA.filter(c => selectedIds.includes(c.id));
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.status === 'completed').length;
+  const inProgressTasks = tasks.filter(t => t.status === 'in_progress').length;
 
   const getTaskStats = (criteriaId: CriteriaId) => {
     const criteriaTasks = tasks.filter(t => t.criteria_id === criteriaId);
@@ -55,7 +56,7 @@ export function Dashboard() {
   return (
     <div>
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
           <div className="flex items-center gap-3">
             <Target className="w-5 h-5 text-blue-400" />
@@ -63,6 +64,19 @@ export function Dashboard() {
               <p className="text-gray-400 text-sm">Criteria Selected</p>
               <p className="text-2xl font-bold text-white">{selectedCriteria.length} / 10</p>
               <p className="text-xs text-gray-500">Need 3+ for EB-1A</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+          <div className="flex items-center gap-3">
+            <Clock className="w-5 h-5 text-yellow-400" />
+            <div>
+              <p className="text-gray-400 text-sm">In Progress</p>
+              <p className="text-2xl font-bold text-white">{inProgressTasks}</p>
+              <p className="text-xs text-gray-500">
+                {inProgressTasks === 1 ? '1 task' : `${inProgressTasks} tasks`} active
+              </p>
             </div>
           </div>
         </div>
