@@ -1,18 +1,60 @@
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Target, CheckCircle2, AlertCircle, ArrowRight, Clock } from 'lucide-react';
+import { Target, CheckCircle2, AlertCircle, ArrowRight, Clock, RefreshCw } from 'lucide-react';
 import { useSelectedCriteria, useTasks } from '../hooks/useData';
+import { useGitHubConfig } from '../hooks/useGitHub';
 import { EB1A_CRITERIA } from '../types';
 import type { CriteriaId } from '../types';
 
 export function Dashboard() {
   const navigate = useNavigate();
   const { criteria: selectedIds, loading: criteriaLoading } = useSelectedCriteria();
-  const { tasks, loading: tasksLoading } = useTasks();
+  const { tasks, loading: tasksLoading, reload: reloadTasks } = useTasks();
+  const { repos, isConnected, syncAll } = useGitHubConfig();
+  const [syncing, setSyncing] = useState(false);
+  const [lastSyncResult, setLastSyncResult] = useState<{ repos: number; tasks: number } | null>(null);
+  const hasSyncedRef = useRef(false);
 
   const selectedCriteria = EB1A_CRITERIA.filter(c => selectedIds.includes(c.id));
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.status === 'completed').length;
   const inProgressTasks = tasks.filter(t => t.status === 'in_progress').length;
+
+  // Auto-sync on page load (once per session)
+  useEffect(() => {
+    const autoSync = async () => {
+      if (hasSyncedRef.current || !isConnected || repos.length === 0) return;
+      hasSyncedRef.current = true;
+
+      setSyncing(true);
+      try {
+        const result = await syncAll();
+        setLastSyncResult({ repos: result.reposUpdated, tasks: result.tasksCompleted });
+        await reloadTasks();
+      } catch (error) {
+        console.error('Auto-sync failed:', error);
+      } finally {
+        setSyncing(false);
+      }
+    };
+
+    if (!criteriaLoading && !tasksLoading) {
+      autoSync();
+    }
+  }, [isConnected, repos.length, syncAll, reloadTasks, criteriaLoading, tasksLoading]);
+
+  const handleManualSync = async () => {
+    setSyncing(true);
+    try {
+      const result = await syncAll();
+      setLastSyncResult({ repos: result.reposUpdated, tasks: result.tasksCompleted });
+      await reloadTasks();
+    } catch (error) {
+      console.error('Sync failed:', error);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const getTaskStats = (criteriaId: CriteriaId) => {
     const criteriaTasks = tasks.filter(t => t.criteria_id === criteriaId);
@@ -55,6 +97,38 @@ export function Dashboard() {
 
   return (
     <div>
+      {/* Sync Status Bar */}
+      {isConnected && repos.length > 0 && (
+        <div className="mb-6 flex items-center justify-between bg-gray-800 rounded-lg px-4 py-3 border border-gray-700">
+          <div className="flex items-center gap-2 text-sm">
+            {syncing ? (
+              <>
+                <RefreshCw className="w-4 h-4 text-blue-400 animate-spin" />
+                <span className="text-gray-300">Syncing GitHub data...</span>
+              </>
+            ) : lastSyncResult ? (
+              <>
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <span className="text-gray-400">
+                  Synced {lastSyncResult.repos} {lastSyncResult.repos === 1 ? 'repo' : 'repos'}
+                  {lastSyncResult.tasks > 0 && ` • ${lastSyncResult.tasks} ${lastSyncResult.tasks === 1 ? 'task' : 'tasks'} completed`}
+                </span>
+              </>
+            ) : (
+              <span className="text-gray-400">{repos.length} GitHub {repos.length === 1 ? 'repo' : 'repos'} connected</span>
+            )}
+          </div>
+          <button
+            onClick={handleManualSync}
+            disabled={syncing}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-300 hover:text-white bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+            Sync
+          </button>
+        </div>
+      )}
+
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">

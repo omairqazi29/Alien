@@ -312,29 +312,31 @@ export const db = {
     return (data || []) as Task[];
   },
 
-  // Auto-complete tasks when repo threshold is met
+  // Sync repo tasks - update evidence and status based on threshold
   async autoCompleteRepoTasks(
     userId: string,
     repoFullName: string,
     currentStars: number,
     threshold: number
   ): Promise<{ updated: number; tasks: Task[] }> {
-    if (currentStars < threshold) {
-      return { updated: 0, tasks: [] };
-    }
-
     const tasks = await this.getTasksByRepo(userId, repoFullName);
-    const tasksToUpdate = tasks.filter(t => t.status !== 'completed');
+    const meetsThreshold = currentStars >= threshold;
 
-    for (const task of tasksToUpdate) {
-      await this.updateTask(task.id, {
-        status: 'completed',
-        last_synced: new Date().toISOString(),
-        evidence: `Auto-completed: ${repoFullName} reached ${currentStars} stars (threshold: ${threshold})`
-      });
+    // Update all tasks for this repo with current evidence
+    for (const task of tasks) {
+      const newStatus = meetsThreshold ? 'completed' : 'in_progress';
+      // Only update if status would change or evidence needs updating
+      if (task.status !== newStatus || !task.evidence?.includes(`${currentStars.toLocaleString()} stars`)) {
+        await this.updateTask(task.id, {
+          status: newStatus,
+          last_synced: new Date().toISOString(),
+          evidence: `Repository has ${currentStars.toLocaleString()} stars`
+        });
+      }
     }
 
-    return { updated: tasksToUpdate.length, tasks: tasksToUpdate };
+    const completedTasks = meetsThreshold ? tasks.filter(t => t.status !== 'completed') : [];
+    return { updated: completedTasks.length, tasks: completedTasks };
   },
 
   // Criteria Policy Details
