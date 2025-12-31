@@ -1,7 +1,14 @@
-import { useState } from 'react';
-import { FileText, Eye, Edit3, Save } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { FileText, Edit3, Save, Upload, X, FileCheck, ToggleLeft, ToggleRight } from 'lucide-react';
 import { useEvidence } from '../hooks/useData';
 import type { CriteriaId } from '../types';
+
+interface Exhibit {
+  id: string;
+  name: string;
+  file?: File;
+  label: string; // e.g., "A-1", "B-2"
+}
 
 interface EvidenceEditorProps {
   criteriaId: CriteriaId;
@@ -14,6 +21,9 @@ export function EvidenceEditor({ criteriaId, criteriaName }: EvidenceEditorProps
   const [isEditing, setIsEditing] = useState(false);
   const [isSaved, setIsSaved] = useState(true);
   const [initialized, setInitialized] = useState(false);
+  const [exhibits, setExhibits] = useState<Exhibit[]>([]);
+  const [assumeEvidenceExists, setAssumeEvidenceExists] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync local content with loaded content
   if (!loading && !initialized) {
@@ -32,31 +42,53 @@ export function EvidenceEditor({ criteriaId, criteriaName }: EvidenceEditorProps
     setIsSaved(false);
   };
 
-  const placeholder = `# ${criteriaName} Evidence
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
 
-## Summary
-Briefly describe how you meet this criterion...
+    const newExhibits: Exhibit[] = Array.from(files).map((file, index) => ({
+      id: `${Date.now()}-${index}`,
+      name: file.name,
+      file,
+      label: `${criteriaId.charAt(0).toUpperCase()}-${exhibits.length + index + 1}`,
+    }));
 
-## Evidence Items
+    setExhibits([...exhibits, ...newExhibits]);
+    setIsSaved(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
-### Item 1: [Title]
-- Description
-- Supporting metrics/data
-- Links or references
+  const removeExhibit = (id: string) => {
+    setExhibits(exhibits.filter(e => e.id !== id));
+    setIsSaved(false);
+  };
 
-### Item 2: [Title]
-...
+  const updateExhibitLabel = (id: string, label: string) => {
+    setExhibits(exhibits.map(e => e.id === id ? { ...e, label } : e));
+    setIsSaved(false);
+  };
 
-## Supporting Documentation
-List any letters, articles, or other documents that support this criterion.
-`;
+  const placeholder = `Paste your petition evidence for ${criteriaName} here...
+
+Example:
+Evidence of Published Material in Major Media
+
+TechBullion
+Mr. Qazi has been featured in TechBullion, a major technology and business publication with substantial national and international reach...
+
+The published article discusses [description of how the article covers the beneficiary's work, achievements, and contributions]...
+
+Conclusion
+The feature in TechBullion constitutes compelling evidence that published material about the beneficiary's work has appeared in major media...`;
 
   return (
     <div className="bg-gray-800 rounded-lg border border-gray-700">
       <div className="flex items-center justify-between p-4 border-b border-gray-700">
         <h3 className="font-semibold text-white flex items-center gap-2">
           <FileText className="w-5 h-5 text-blue-400" />
-          Evidence Documentation
+          Petition Evidence
         </h3>
         <div className="flex items-center gap-2">
           {!isSaved && (
@@ -77,15 +109,6 @@ List any letters, articles, or other documents that support this criterion.
             >
               <Edit3 className="w-4 h-4" />
               Edit
-            </button>
-          )}
-          {!isEditing && content && (
-            <button
-              onClick={() => setIsEditing(false)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors text-sm"
-            >
-              <Eye className="w-4 h-4" />
-              Preview
             </button>
           )}
         </div>
@@ -112,21 +135,99 @@ List any letters, articles, or other documents that support this criterion.
         ) : (
           <div className="text-center py-8">
             <FileText className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-            <p className="text-gray-400 mb-3">No evidence documented yet</p>
+            <p className="text-gray-400 mb-3">No petition evidence added yet</p>
             <button
               onClick={() => setIsEditing(true)}
               className="text-blue-400 hover:text-blue-300 text-sm"
             >
-              Add your evidence documentation
+              Paste your petition evidence
             </button>
           </div>
         )}
       </div>
 
+      {/* Assume Evidence Exists Toggle */}
+      <div className="px-4 py-3 border-t border-gray-700">
+        <button
+          onClick={() => setAssumeEvidenceExists(!assumeEvidenceExists)}
+          className="flex items-center gap-3 w-full text-left"
+        >
+          {assumeEvidenceExists ? (
+            <ToggleRight className="w-6 h-6 text-emerald-400" />
+          ) : (
+            <ToggleLeft className="w-6 h-6 text-gray-500" />
+          )}
+          <div>
+            <span className={`text-sm font-medium ${assumeEvidenceExists ? 'text-emerald-400' : 'text-gray-400'}`}>
+              Assume evidence exists
+            </span>
+            <p className="text-xs text-gray-500">
+              Grade based on written description only, without requiring attached exhibits
+            </p>
+          </div>
+        </button>
+      </div>
+
+      {/* Exhibits Section */}
+      {!assumeEvidenceExists && (
+        <div className="px-4 py-3 border-t border-gray-700">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-medium text-gray-300 flex items-center gap-2">
+              <FileCheck className="w-4 h-4 text-blue-400" />
+              Attached Exhibits
+            </h4>
+            <label className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors text-sm cursor-pointer">
+              <Upload className="w-4 h-4" />
+              Upload
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={handleFileUpload}
+                className="hidden"
+                accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+              />
+            </label>
+          </div>
+
+          {exhibits.length === 0 ? (
+            <p className="text-xs text-gray-500 text-center py-4">
+              No exhibits attached. Upload PDFs, images, or documents that support this criterion.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {exhibits.map((exhibit) => (
+                <div
+                  key={exhibit.id}
+                  className="flex items-center gap-3 p-2 bg-gray-900 rounded-lg"
+                >
+                  <input
+                    type="text"
+                    value={exhibit.label}
+                    onChange={(e) => updateExhibitLabel(exhibit.id, e.target.value)}
+                    className="w-16 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-gray-300 focus:outline-none focus:border-blue-500"
+                    placeholder="A-1"
+                  />
+                  <span className="flex-1 text-sm text-gray-400 truncate">{exhibit.name}</span>
+                  <button
+                    onClick={() => removeExhibit(exhibit.id)}
+                    className="p-1 text-gray-500 hover:text-red-400 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {localContent && (
-        <div className="px-4 pb-4">
+        <div className="px-4 pb-4 pt-2 border-t border-gray-700">
           <p className="text-xs text-gray-500">
-            This content will be sent to the AI grader for evaluation. Use markdown formatting for better structure.
+            {assumeEvidenceExists
+              ? 'The AI grader will evaluate your petition text and assume all referenced exhibits exist.'
+              : 'Paste your petition text directly. The AI grader will evaluate this evidence as a USCIS immigration officer would.'}
           </p>
         </div>
       )}
