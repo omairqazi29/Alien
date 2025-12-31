@@ -167,7 +167,7 @@ JSON Response:`;
     // Grade with Claude Sonnet 3.5 via Bedrock
     async function gradeWithClaudeSonnet35(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
       const textContent = await callBedrockConverse(
-        'anthropic.claude-3-5-sonnet-20241022-v2:0',
+        'anthropic.claude-3-5-sonnet-20240620-v1:0',
         SYSTEM_PROMPT,
         userPrompt
       );
