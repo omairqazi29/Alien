@@ -176,6 +176,32 @@ export function useGrade(criteriaId: CriteriaId) {
   return { grade, setGrade: saveGrade, loading };
 }
 
+// Hook for all AI grades (for dashboard/stats)
+export function useAllGrades() {
+  const { user } = useAuth();
+  const [grades, setGrades] = useState<AIGrade[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const data = await db.getGrades(user.id);
+        setGrades(data);
+      } catch (error) {
+        console.error('Failed to load grades:', error);
+      }
+      setLoading(false);
+    }
+    load();
+  }, [user]);
+
+  return { grades, loading };
+}
+
 // Hook for criteria policy details (from DB)
 export function useCriteriaPolicy(criteriaId: CriteriaId) {
   const [policyDetails, setPolicyDetails] = useState('');
