@@ -20,16 +20,6 @@ interface SingleGradeResponse {
   suggestions: string[];
 }
 
-interface GradeResponse {
-  grades: {
-    model: string;
-    modelName: string;
-    grade: 'strong' | 'moderate' | 'weak' | 'insufficient';
-    score: number;
-    feedback: string;
-    suggestions: string[];
-  }[];
-}
 
 const SYSTEM_PROMPT = `You are an experienced USCIS immigration officer evaluating EB-1A (Extraordinary Ability) visa petitions.
 
@@ -237,20 +227,11 @@ JSON Response:`;
       }
     }
 
-    // Run all models in parallel
-    const [opus45Grade, gemmaGrade, deepseekGrade, mistralGrade, llamaGrade, qwenGrade] = await Promise.all([
-      gradeWithClaudeOpus45(),
-      gradeWithGemma(),
-      gradeWithDeepSeek(),
-      gradeWithMistral(),
-      gradeWithLlama(),
-      gradeWithQwen(),
-    ]);
+    // Set up SSE streaming
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
 
-    const allGrades = [opus45Grade, gemmaGrade, deepseekGrade, mistralGrade, llamaGrade, qwenGrade];
-
-    // Calculate average grade
-    const avgScore = Math.round(allGrades.reduce((sum, g) => sum + g.score, 0) / allGrades.length);
     const gradeFromScore = (score: number): 'strong' | 'moderate' | 'weak' | 'insufficient' => {
       if (score >= 75) return 'strong';
       if (score >= 50) return 'moderate';
@@ -258,16 +239,41 @@ JSON Response:`;
       return 'insufficient';
     };
 
-    const averageGrade = {
-      model: 'average',
-      modelName: 'Average',
-      grade: gradeFromScore(avgScore),
-      score: avgScore,
-      feedback: `Average score across ${allGrades.length} models.`,
-      suggestions: [],
+    const completedGrades: (SingleGradeResponse & { model: string; modelName: string })[] = [];
+
+    // Send individual grade as SSE event
+    const sendGrade = (grade: SingleGradeResponse & { model: string; modelName: string }) => {
+      completedGrades.push(grade);
+      res.write(`data: ${JSON.stringify({ type: 'grade', grade })}\n\n`);
+
+      // Calculate and send updated average
+      const avgScore = Math.round(completedGrades.reduce((sum, g) => sum + g.score, 0) / completedGrades.length);
+      const averageGrade = {
+        model: 'average',
+        modelName: 'Average',
+        grade: gradeFromScore(avgScore),
+        score: avgScore,
+        feedback: `Average score across ${completedGrades.length} model${completedGrades.length > 1 ? 's' : ''}.`,
+        suggestions: [],
+      };
+      res.write(`data: ${JSON.stringify({ type: 'average', grade: averageGrade, totalModels: 6 })}\n\n`);
     };
 
-    return res.status(200).json({ grades: [averageGrade, ...allGrades] });
+    // Run all models in parallel, streaming results as they complete
+    const modelPromises = [
+      gradeWithClaudeOpus45().then(sendGrade).catch(e => console.error('Claude Opus 4.5 error:', e)),
+      gradeWithGemma().then(sendGrade).catch(e => console.error('Gemma error:', e)),
+      gradeWithDeepSeek().then(sendGrade).catch(e => console.error('DeepSeek error:', e)),
+      gradeWithMistral().then(sendGrade).catch(e => console.error('Mistral error:', e)),
+      gradeWithLlama().then(sendGrade).catch(e => console.error('Llama error:', e)),
+      gradeWithQwen().then(sendGrade).catch(e => console.error('Qwen error:', e)),
+    ];
+
+    await Promise.all(modelPromises);
+
+    // Send completion event
+    res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
+    res.end();
   } catch (error) {
     console.error('Grading error:', error);
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');

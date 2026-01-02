@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { Sparkles, AlertTriangle, CheckCircle, XCircle, HelpCircle } from 'lucide-react';
-import { gradeEvidence } from '../lib/ai';
+import { useState, useCallback } from 'react';
+import { Sparkles, AlertTriangle, CheckCircle, XCircle, HelpCircle, Loader2 } from 'lucide-react';
+import { gradeEvidenceStream } from '../lib/ai';
 import { useCriteriaPolicy, useAssumeEvidenceExists, useExhibits } from '../hooks/useData';
 import { Button, Alert, Card } from './ui';
 import type { AIGrade, CriteriaId, GradeLevel, ModelGrade } from '../types';
@@ -93,11 +93,14 @@ function GradeCard({ grade }: { grade: ModelGrade }) {
 export function AIGrader({ criteriaId, evidenceContent, existingGrade, onGrade }: AIGraderProps) {
   const [isGrading, setIsGrading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [streamingGrades, setStreamingGrades] = useState<ModelGrade[]>([]);
+  const [averageGrade, setAverageGrade] = useState<ModelGrade | null>(null);
+  const [gradingProgress, setGradingProgress] = useState({ completed: 0, total: 6 });
   const { policyDetails } = useCriteriaPolicy(criteriaId);
   const { assumeExists } = useAssumeEvidenceExists(criteriaId);
   const { exhibits } = useExhibits(criteriaId);
 
-  const handleGrade = async () => {
+  const handleGrade = useCallback(async () => {
     if (!evidenceContent || !evidenceContent.trim()) {
       setError('Please add petition evidence before grading.');
       return;
@@ -105,35 +108,70 @@ export function AIGrader({ criteriaId, evidenceContent, existingGrade, onGrade }
 
     setIsGrading(true);
     setError(null);
+    setStreamingGrades([]);
+    setAverageGrade(null);
+    setGradingProgress({ completed: 0, total: 6 });
 
-    try {
-      // Build exhibits content from extracted text (only when not assuming exhibits exist)
-      let exhibitsContent = '';
-      if (!assumeExists && exhibits.length > 0) {
-        const exhibitTexts = exhibits
-          .filter(e => e.extracted_text)
-          .map(e => `[Exhibit ${e.label}: ${e.file_name}]\n${e.extracted_text}`)
-          .join('\n\n---\n\n');
-        exhibitsContent = exhibitTexts;
-      }
-
-      const result = await gradeEvidence(criteriaId, evidenceContent, policyDetails, assumeExists, exhibitsContent);
-
-      const aiGrade: AIGrade = {
-        id: `grade-${criteriaId}-${Date.now()}`,
-        criteria_id: criteriaId,
-        grades: result.grades,
-        graded_at: new Date().toISOString(),
-      };
-
-      onGrade(aiGrade);
-    } catch (err) {
-      console.error('Grading error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to grade evidence');
-    } finally {
-      setIsGrading(false);
+    // Build exhibits content from extracted text (only when not assuming exhibits exist)
+    let exhibitsContent = '';
+    if (!assumeExists && exhibits.length > 0) {
+      const exhibitTexts = exhibits
+        .filter(e => e.extracted_text)
+        .map(e => `[Exhibit ${e.label}: ${e.file_name}]\n${e.extracted_text}`)
+        .join('\n\n---\n\n');
+      exhibitsContent = exhibitTexts;
     }
-  };
+
+    await gradeEvidenceStream(
+      criteriaId,
+      evidenceContent,
+      policyDetails,
+      assumeExists,
+      exhibitsContent,
+      {
+        onGrade: (grade) => {
+          setStreamingGrades(prev => [...prev, grade]);
+        },
+        onAverage: (grade, completed, total) => {
+          setAverageGrade(grade);
+          setGradingProgress({ completed, total });
+        },
+        onDone: () => {
+          setIsGrading(false);
+          // Save final grade
+          setStreamingGrades(grades => {
+            setAverageGrade(avg => {
+              if (avg && grades.length > 0) {
+                const aiGrade: AIGrade = {
+                  id: `grade-${criteriaId}-${Date.now()}`,
+                  criteria_id: criteriaId,
+                  grades: [avg, ...grades],
+                  graded_at: new Date().toISOString(),
+                };
+                onGrade(aiGrade);
+              }
+              return avg;
+            });
+            return grades;
+          });
+        },
+        onError: (err) => {
+          console.error('Grading error:', err);
+          setError(err.message);
+          setIsGrading(false);
+        },
+      }
+    );
+  }, [criteriaId, evidenceContent, policyDetails, assumeExists, exhibits, onGrade]);
+
+  // Use streaming grades while grading, otherwise use existing grade
+  const displayGrades = isGrading || streamingGrades.length > 0
+    ? streamingGrades
+    : existingGrade?.grades.filter(g => g.model !== 'average') || [];
+
+  const displayAverage = isGrading || averageGrade
+    ? averageGrade
+    : existingGrade?.grades.find(g => g.model === 'average') || null;
 
   return (
     <Card>
@@ -158,25 +196,33 @@ export function AIGrader({ criteriaId, evidenceContent, existingGrade, onGrade }
         </Alert>
       )}
 
-      {existingGrade && existingGrade.grades.length > 0 ? (
+      {displayGrades.length > 0 || displayAverage ? (
         <div className="space-y-4">
           {/* Average grade as compact badge */}
-          {existingGrade.grades.find(g => g.model === 'average') && (
-            <AverageGradeBadge grade={existingGrade.grades.find(g => g.model === 'average')!} />
+          {displayAverage && (
+            <AverageGradeBadge grade={displayAverage} />
+          )}
+
+          {/* Progress indicator while grading */}
+          {isGrading && (
+            <div className="flex items-center gap-2 text-sm text-gray-400">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Grading with {gradingProgress.completed}/{gradingProgress.total} models...</span>
+            </div>
           )}
 
           {/* Individual model grades */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {existingGrade.grades
-              .filter(g => g.model !== 'average')
-              .map((grade) => (
-                <GradeCard key={grade.model} grade={grade} />
-              ))}
+            {displayGrades.map((grade) => (
+              <GradeCard key={grade.model} grade={grade} />
+            ))}
           </div>
 
-          <p className="text-xs text-gray-500">
-            Graded: {new Date(existingGrade.graded_at).toLocaleString()}
-          </p>
+          {!isGrading && existingGrade && (
+            <p className="text-xs text-gray-500">
+              Graded: {new Date(existingGrade.graded_at).toLocaleString()}
+            </p>
+          )}
         </div>
       ) : (
         <p className="text-gray-400 text-sm">
