@@ -6,13 +6,6 @@ import { useGitHubConfig } from '../hooks/useGitHub';
 import { EB1A_CRITERIA } from '../types';
 import type { CriteriaId, GradeLevel } from '../types';
 
-const GRADE_CONFIG: Record<GradeLevel, { color: string; bgColor: string; label: string; score: number }> = {
-  strong: { color: 'text-emerald-400', bgColor: 'bg-emerald-500', label: 'Strong', score: 4 },
-  moderate: { color: 'text-blue-400', bgColor: 'bg-blue-500', label: 'Moderate', score: 3 },
-  weak: { color: 'text-yellow-400', bgColor: 'bg-yellow-500', label: 'Weak', score: 2 },
-  insufficient: { color: 'text-red-400', bgColor: 'bg-red-500', label: 'Insufficient', score: 1 },
-};
-
 export function Dashboard() {
   const navigate = useNavigate();
   const { criteria: selectedIds, loading: criteriaLoading } = useSelectedCriteria();
@@ -30,18 +23,6 @@ export function Dashboard() {
   const blockedTasks = tasks.filter(t => t.status === 'blocked').length;
 
   // Calculate grade statistics
-  const getGradeForCriteria = (criteriaId: CriteriaId) => {
-    const grade = grades.find(g => g.criteria_id === criteriaId);
-    if (!grade || !grade.grades || grade.grades.length === 0) return null;
-    // Use average score across all models
-    const avgScore = grade.grades.reduce((sum, g) => sum + g.score, 0) / grade.grades.length;
-    // Determine grade level from average score
-    if (avgScore >= 75) return 'strong' as GradeLevel;
-    if (avgScore >= 50) return 'moderate' as GradeLevel;
-    if (avgScore >= 25) return 'weak' as GradeLevel;
-    return 'insufficient' as GradeLevel;
-  };
-
   const getAverageScore = () => {
     if (grades.length === 0) return null;
     const allScores = grades.flatMap(g => g.grades?.map(mg => mg.score) || []);
@@ -260,58 +241,167 @@ export function Dashboard() {
       </div>
 
       {/* Grades Summary */}
-      {selectedCriteria.length > 0 && (
-        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Award className="w-5 h-5 text-purple-400" />
-              <h3 className="font-semibold text-white">Evidence Grades</h3>
-            </div>
-            {averageScore !== null && (
+      {selectedCriteria.length > 0 && (() => {
+        // Build sorted criteria list with scores
+        const criteriaWithScores = selectedCriteria.map(c => {
+          const grade = grades.find(g => g.criteria_id === c.id);
+          const avgGrade = grade?.grades?.find(g => g.model === 'average');
+          const score = avgGrade?.score ?? null;
+          const gradeLevel = score !== null ? (
+            score >= 75 ? 'strong' as GradeLevel :
+            score >= 50 ? 'moderate' as GradeLevel :
+            score >= 25 ? 'weak' as GradeLevel : 'insufficient' as GradeLevel
+          ) : null;
+          return { ...c, score, gradeLevel };
+        });
+
+        const graded = criteriaWithScores.filter(c => c.score !== null);
+        const ungraded = criteriaWithScores.filter(c => c.score === null);
+        const sortedByScore = [...graded].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
+        const strongest = sortedByScore.filter(c => c.gradeLevel === 'strong');
+        const needsWork = sortedByScore.filter(c => c.gradeLevel === 'weak' || c.gradeLevel === 'insufficient');
+        const moderate = sortedByScore.filter(c => c.gradeLevel === 'moderate');
+
+        // Determine recommendation
+        let recommendation = '';
+        let recommendationColor = 'text-gray-400';
+        if (ungraded.length > 0) {
+          recommendation = `Grade ${ungraded.length} criteria to see full assessment`;
+          recommendationColor = 'text-blue-400';
+        } else if (needsWork.length > 0) {
+          recommendation = `Focus on improving ${needsWork[needsWork.length - 1].name}`;
+          recommendationColor = 'text-yellow-400';
+        } else if (moderate.length > 0) {
+          recommendation = `Strengthen ${moderate[moderate.length - 1].name} for a stronger case`;
+          recommendationColor = 'text-blue-400';
+        } else if (strongest.length >= 3) {
+          recommendation = 'Strong evidence across 3+ criteria - ready for review';
+          recommendationColor = 'text-emerald-400';
+        }
+
+        return (
+          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 mb-6">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-400">Average Score:</span>
-                <span className={`text-lg font-bold ${
-                  averageScore >= 75 ? 'text-emerald-400' :
-                  averageScore >= 50 ? 'text-blue-400' :
-                  averageScore >= 25 ? 'text-yellow-400' : 'text-red-400'
-                }`}>
-                  {averageScore}/100
-                </span>
+                <Award className="w-5 h-5 text-purple-400" />
+                <h3 className="font-semibold text-white">Evidence Grades</h3>
+              </div>
+              {averageScore !== null && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-400">Average Score:</span>
+                  <span className={`text-lg font-bold ${
+                    averageScore >= 75 ? 'text-emerald-400' :
+                    averageScore >= 50 ? 'text-blue-400' :
+                    averageScore >= 25 ? 'text-yellow-400' : 'text-red-400'
+                  }`}>
+                    {averageScore}/100
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Recommendation Banner */}
+            {recommendation && (
+              <div className={`mb-4 px-3 py-2 rounded-lg bg-gray-700/50 border border-gray-600 ${recommendationColor}`}>
+                <p className="text-sm font-medium">{recommendation}</p>
               </div>
             )}
-          </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-            {selectedCriteria.map(c => {
-              const gradeLevel = getGradeForCriteria(c.id);
-              const config = gradeLevel ? GRADE_CONFIG[gradeLevel] : null;
-
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => navigate(`/criteria/${c.id}`)}
-                  className="bg-gray-700/50 rounded-lg p-3 border border-gray-600 hover:border-gray-500 transition-all text-left"
-                >
-                  <p className="text-xs text-gray-400 truncate mb-1">{c.name}</p>
-                  {config ? (
-                    <p className={`text-sm font-semibold ${config.color}`}>
-                      {config.label}
+            {/* Criteria by strength */}
+            {graded.length > 0 && (
+              <div className="space-y-3 mb-4">
+                {/* Strongest criteria */}
+                {strongest.length > 0 && (
+                  <div>
+                    <p className="text-xs text-emerald-400 font-medium mb-2 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" />
+                      Strongest ({strongest.length})
                     </p>
-                  ) : (
-                    <p className="text-sm text-gray-500">Not graded</p>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                    <div className="flex flex-wrap gap-2">
+                      {strongest.map(c => (
+                        <button
+                          key={c.id}
+                          onClick={() => navigate(`/criteria/${c.id}`)}
+                          className="px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/30 rounded-lg hover:border-emerald-500/50 transition-all text-left"
+                        >
+                          <span className="text-sm text-emerald-300">{c.name}</span>
+                          <span className="text-xs text-emerald-400 ml-2">{c.score}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-          {gradedCriteriaCount === 0 && (
-            <p className="text-sm text-gray-500 mt-3 text-center">
-              No criteria have been graded yet. Add evidence and run AI grading to see your scores.
-            </p>
-          )}
-        </div>
-      )}
+                {/* Moderate criteria */}
+                {moderate.length > 0 && (
+                  <div>
+                    <p className="text-xs text-blue-400 font-medium mb-2">Moderate ({moderate.length})</p>
+                    <div className="flex flex-wrap gap-2">
+                      {moderate.map(c => (
+                        <button
+                          key={c.id}
+                          onClick={() => navigate(`/criteria/${c.id}`)}
+                          className="px-3 py-1.5 bg-blue-500/20 border border-blue-500/30 rounded-lg hover:border-blue-500/50 transition-all text-left"
+                        >
+                          <span className="text-sm text-blue-300">{c.name}</span>
+                          <span className="text-xs text-blue-400 ml-2">{c.score}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Needs work */}
+                {needsWork.length > 0 && (
+                  <div>
+                    <p className="text-xs text-yellow-400 font-medium mb-2 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      Needs Work ({needsWork.length})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {needsWork.map(c => (
+                        <button
+                          key={c.id}
+                          onClick={() => navigate(`/criteria/${c.id}`)}
+                          className="px-3 py-1.5 bg-yellow-500/20 border border-yellow-500/30 rounded-lg hover:border-yellow-500/50 transition-all text-left"
+                        >
+                          <span className="text-sm text-yellow-300">{c.name}</span>
+                          <span className="text-xs text-yellow-400 ml-2">{c.score}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Ungraded criteria */}
+            {ungraded.length > 0 && (
+              <div>
+                <p className="text-xs text-gray-500 font-medium mb-2">Not Graded ({ungraded.length})</p>
+                <div className="flex flex-wrap gap-2">
+                  {ungraded.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => navigate(`/criteria/${c.id}`)}
+                      className="px-3 py-1.5 bg-gray-700/50 border border-gray-600 rounded-lg hover:border-gray-500 transition-all text-left"
+                    >
+                      <span className="text-sm text-gray-400">{c.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {gradedCriteriaCount === 0 && (
+              <p className="text-sm text-gray-500 text-center">
+                No criteria have been graded yet. Add evidence and run AI grading to see your scores.
+              </p>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Selected Criteria Progress */}
       <div className="mb-6">
