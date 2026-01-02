@@ -198,10 +198,10 @@ JSON Response:`;
       return { model: 'mistral-large-3', modelName: 'Mistral Large 3', ...gradeResult };
     }
 
-    // Grade with Meta Llama 3.3 70B via Bedrock
+    // Grade with Meta Llama 4 Maverick via Bedrock
     async function gradeWithLlama(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
       const textContent = await callBedrockConverse(
-        'meta.llama3-3-70b-instruct-v1:0',
+        'us.meta.llama4-maverick-17b-instruct-v1:0',
         SYSTEM_PROMPT,
         userPrompt
       );
@@ -212,27 +212,24 @@ JSON Response:`;
       const gradeResult: SingleGradeResponse = JSON.parse(jsonMatch[0]);
       validateGrade(gradeResult);
 
-      return { model: 'llama3-70b', modelName: 'Meta Llama 3.3 70B', ...gradeResult };
+      return { model: 'llama4-maverick', modelName: 'Meta Llama 4 Maverick', ...gradeResult };
     }
 
-    // Grade with OpenAI GPT OSS 120B via Bedrock
-    async function gradeWithGPT(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
+    // Grade with Qwen3 235B via Bedrock
+    async function gradeWithQwen(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
       const textContent = await callBedrockConverse(
-        'openai.gpt-oss-120b-1:0',
+        'qwen.qwen3-235b-a22b-2507-v1:0',
         SYSTEM_PROMPT,
         userPrompt
       );
 
       const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        console.error('GPT raw response:', textContent.substring(0, 500));
-        throw new Error('Failed to parse GPT response');
-      }
+      if (!jsonMatch) throw new Error('Failed to parse Qwen response');
 
       const gradeResult: SingleGradeResponse = JSON.parse(jsonMatch[0]);
       validateGrade(gradeResult);
 
-      return { model: 'gpt-oss-120b', modelName: 'OpenAI GPT OSS 120B', ...gradeResult };
+      return { model: 'qwen3-235b', modelName: 'Qwen3 235B', ...gradeResult };
     }
 
     function validateGrade(result: SingleGradeResponse) {
@@ -245,16 +242,16 @@ JSON Response:`;
     }
 
     // Run all models in parallel
-    const [opus45Grade, gemmaGrade, deepseekGrade, mistralGrade, llamaGrade, gptGrade] = await Promise.all([
+    const [opus45Grade, gemmaGrade, deepseekGrade, mistralGrade, llamaGrade, qwenGrade] = await Promise.all([
       gradeWithClaudeOpus45(),
       gradeWithGemma(),
       gradeWithDeepSeek(),
       gradeWithMistral(),
       gradeWithLlama(),
-      gradeWithGPT(),
+      gradeWithQwen(),
     ]);
 
-    const allGrades = [opus45Grade, gemmaGrade, deepseekGrade, mistralGrade, llamaGrade, gptGrade];
+    const allGrades = [opus45Grade, gemmaGrade, deepseekGrade, mistralGrade, llamaGrade, qwenGrade];
 
     // Calculate average grade
     const avgScore = Math.round(allGrades.reduce((sum, g) => sum + g.score, 0) / allGrades.length);
