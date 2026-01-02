@@ -164,10 +164,10 @@ JSON Response:`;
       return { model: 'gemma-3-12b', modelName: 'Google Gemma 3 12B', ...gradeResult };
     }
 
-    // Grade with DeepSeek R1 via Bedrock
+    // Grade with DeepSeek R1 via Bedrock (using cross-region inference profile)
     async function gradeWithDeepSeek(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
       const textContent = await callBedrockConverse(
-        'deepseek.r1-v1:0',
+        'us.deepseek.r1-v1:0',
         SYSTEM_PROMPT,
         userPrompt
       );
