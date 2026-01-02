@@ -27,7 +27,7 @@ export function EvidenceEditor({ criteriaId, criteriaName, onSave }: EvidenceEdi
   const [isSaved, setIsSaved] = useState(true);
   const [initialized, setInitialized] = useState(false);
   const [processingExhibits, setProcessingExhibits] = useState<Set<string>>(new Set());
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync local content with loaded content

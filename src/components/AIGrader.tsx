@@ -19,6 +19,32 @@ const gradeConfig: Record<GradeLevel, { icon: React.ElementType; color: string; 
   insufficient: { icon: XCircle, color: 'text-red-400', bg: 'bg-red-500/20', label: 'Insufficient' },
 };
 
+function AverageGradeBadge({ grade }: { grade: ModelGrade }) {
+  const config = gradeConfig[grade.grade];
+  const GradeIcon = config.icon;
+
+  return (
+    <div className={`flex items-center justify-between p-3 rounded-lg ${config.bg} mb-4`}>
+      <div className="flex items-center gap-3">
+        <GradeIcon className={`w-6 h-6 ${config.color}`} />
+        <div>
+          <span className="text-xs text-gray-400">Average across 6 models</span>
+          <div className="flex items-center gap-2">
+            <span className={`font-bold ${config.color}`}>{config.label}</span>
+            <span className="text-gray-400 text-sm">({grade.score}/100)</span>
+          </div>
+        </div>
+      </div>
+      <div className="w-32 h-2 bg-gray-700 rounded-full">
+        <div
+          className={`h-full rounded-full ${config.bg.replace('/20', '')}`}
+          style={{ width: `${grade.score}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function GradeCard({ grade }: { grade: ModelGrade }) {
   const config = gradeConfig[grade.grade];
   const GradeIcon = config.icon;
@@ -134,10 +160,18 @@ export function AIGrader({ criteriaId, evidenceContent, existingGrade, onGrade }
 
       {existingGrade && existingGrade.grades.length > 0 ? (
         <div className="space-y-4">
+          {/* Average grade as compact badge */}
+          {existingGrade.grades.find(g => g.model === 'average') && (
+            <AverageGradeBadge grade={existingGrade.grades.find(g => g.model === 'average')!} />
+          )}
+
+          {/* Individual model grades */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {existingGrade.grades.map((grade) => (
-              <GradeCard key={grade.model} grade={grade} />
-            ))}
+            {existingGrade.grades
+              .filter(g => g.model !== 'average')
+              .map((grade) => (
+                <GradeCard key={grade.model} grade={grade} />
+              ))}
           </div>
 
           <p className="text-xs text-gray-500">
@@ -146,7 +180,7 @@ export function AIGrader({ criteriaId, evidenceContent, existingGrade, onGrade }
         </div>
       ) : (
         <p className="text-gray-400 text-sm">
-          Click "Grade" to have two AI models evaluate your evidence for this criterion as an immigration officer would.
+          Click "Grade" to have 6 AI models evaluate your evidence for this criterion as an immigration officer would.
         </p>
       )}
     </Card>
