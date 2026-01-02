@@ -224,7 +224,10 @@ JSON Response:`;
       );
 
       const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Failed to parse GPT response');
+      if (!jsonMatch) {
+        console.error('GPT raw response:', textContent.substring(0, 500));
+        throw new Error('Failed to parse GPT response');
+      }
 
       const gradeResult: SingleGradeResponse = JSON.parse(jsonMatch[0]);
       validateGrade(gradeResult);
