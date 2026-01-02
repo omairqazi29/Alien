@@ -154,33 +154,64 @@ function parseJsonResponse(text: string): SingleGradeResponse {
     throw new Error('Empty response from model');
   }
 
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  console.log('Raw model response (first 500 chars):', text.substring(0, 500));
+
+  // Remove markdown code blocks if present
+  let cleanedText = text
+    .replace(/```json\s*/gi, '')
+    .replace(/```\s*/g, '')
+    .trim();
+
+  // Try to find JSON object in the response - get the LAST complete JSON object
+  const jsonMatches = cleanedText.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g);
+  let jsonMatch: string | null = null;
+
+  if (jsonMatches && jsonMatches.length > 0) {
+    for (const match of jsonMatches) {
+      if (match.includes('"grade"') || match.includes("'grade'")) {
+        jsonMatch = match;
+        break;
+      }
+    }
+    if (!jsonMatch) {
+      jsonMatch = jsonMatches[jsonMatches.length - 1];
+    }
+  }
+
   if (!jsonMatch) {
-    const gradeMatch = text.match(/grade["\s:]+["']?(strong|moderate|weak|insufficient)["']?/i);
-    const scoreMatch = text.match(/score["\s:]+(\d+)/i);
+    const gradeMatch = cleanedText.match(/grade["\s:]+["']?(strong|moderate|weak|insufficient)["']?/i);
+    const scoreMatch = cleanedText.match(/score["\s:]+(\d+)/i);
+    const feedbackMatch = cleanedText.match(/feedback["\s:]+["']([^"']+)["']/i);
 
     if (gradeMatch || scoreMatch) {
       return {
         grade: (gradeMatch?.[1]?.toLowerCase() as 'strong' | 'moderate' | 'weak' | 'insufficient') || 'moderate',
         score: scoreMatch ? parseInt(scoreMatch[1], 10) : 50,
-        feedback: 'Response parsed from non-JSON format.',
+        feedback: feedbackMatch?.[1] || 'Response parsed from non-JSON format.',
         suggestions: [],
       };
     }
+    console.error('No JSON found. Full response:', cleanedText);
     throw new Error('No JSON found in response');
   }
 
-  let cleanedJson = jsonMatch[0]
+  let cleanedJson = jsonMatch
     .replace(/[\x00-\x1F\x7F]/g, ' ')
     .replace(/\n/g, ' ')
     .replace(/\r/g, ' ')
     .replace(/\t/g, ' ');
 
   cleanedJson = cleanedJson.replace(/,\s*([}\]])/g, '$1');
+  cleanedJson = cleanedJson.replace(/'([^']+)':/g, '"$1":');
+  cleanedJson = cleanedJson.replace(/:\s*'([^']*)'/g, ': "$1"');
+
+  console.log('Cleaned JSON:', cleanedJson.substring(0, 300));
 
   try {
     return JSON.parse(cleanedJson);
   } catch (parseError) {
+    console.error('JSON parse error:', parseError, 'Cleaned JSON:', cleanedJson);
+
     const gradeMatch = cleanedJson.match(/"grade"\s*:\s*"(strong|moderate|weak|insufficient)"/i);
     const scoreMatch = cleanedJson.match(/"score"\s*:\s*(\d+)/);
     const feedbackMatch = cleanedJson.match(/"feedback"\s*:\s*"([^"]+)"/);
