@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { FileText, Edit3, Save, Upload, X, FileCheck, ToggleLeft, ToggleRight, Loader2, ExternalLink, RefreshCw } from 'lucide-react';
+import { FileText, Edit3, Save, Upload, X, FileCheck, ToggleLeft, ToggleRight, Loader2, ExternalLink, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { useEvidence, useAssumeEvidenceExists, useExhibits } from '../hooks/useData';
 import type { CriteriaId, Exhibit } from '../types';
 
@@ -27,6 +27,7 @@ export function EvidenceEditor({ criteriaId, criteriaName, onSave }: EvidenceEdi
   const [isSaved, setIsSaved] = useState(true);
   const [initialized, setInitialized] = useState(false);
   const [processingExhibits, setProcessingExhibits] = useState<Set<string>>(new Set());
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync local content with loaded content
@@ -98,15 +99,28 @@ The feature in TechBullion constitutes compelling evidence that published materi
   return (
     <div className="bg-gray-800 rounded-lg border border-gray-700">
       <div className="flex items-center justify-between p-4 border-b border-gray-700">
-        <h3 className="font-semibold text-white flex items-center gap-2">
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="font-semibold text-white flex items-center gap-2 hover:text-gray-300 transition-colors"
+        >
           <FileText className="w-5 h-5 text-blue-400" />
           Petition Evidence
-        </h3>
+          {isCollapsed ? (
+            <ChevronDown className="w-4 h-4 text-gray-400" />
+          ) : (
+            <ChevronUp className="w-4 h-4 text-gray-400" />
+          )}
+          {isCollapsed && localContent && (
+            <span className="text-xs text-gray-500 font-normal ml-2">
+              ({localContent.length} chars)
+            </span>
+          )}
+        </button>
         <div className="flex items-center gap-2">
           {!isSaved && (
             <span className="text-xs text-yellow-400">Unsaved changes</span>
           )}
-          {isEditing ? (
+          {!isCollapsed && (isEditing ? (
             <button
               onClick={handleSave}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors text-sm"
@@ -122,68 +136,72 @@ The feature in TechBullion constitutes compelling evidence that published materi
               <Edit3 className="w-4 h-4" />
               Edit
             </button>
-          )}
+          ))}
         </div>
       </div>
 
-      <div className="p-4">
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : isEditing ? (
-          <textarea
-            value={localContent}
-            onChange={(e) => handleChange(e.target.value)}
-            placeholder={placeholder}
-            className="w-full h-80 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 font-mono text-sm resize-none"
-          />
-        ) : localContent ? (
-          <div className="prose prose-invert prose-sm max-w-none">
-            <pre className="whitespace-pre-wrap text-gray-300 text-sm font-sans leading-relaxed">
-              {localContent}
-            </pre>
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <FileText className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-            <p className="text-gray-400 mb-3">No petition evidence added yet</p>
-            <button
-              onClick={() => setIsEditing(true)}
-              className="text-blue-400 hover:text-blue-300 text-sm"
-            >
-              Paste your petition evidence
-            </button>
-          </div>
-        )}
-      </div>
+      {!isCollapsed && (
+        <div className="p-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : isEditing ? (
+            <textarea
+              value={localContent}
+              onChange={(e) => handleChange(e.target.value)}
+              placeholder={placeholder}
+              className="w-full h-80 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 font-mono text-sm resize-none"
+            />
+          ) : localContent ? (
+            <div className="prose prose-invert prose-sm max-w-none">
+              <pre className="whitespace-pre-wrap text-gray-300 text-sm font-sans leading-relaxed">
+                {localContent}
+              </pre>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <FileText className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+              <p className="text-gray-400 mb-3">No petition evidence added yet</p>
+              <button
+                onClick={() => setIsEditing(true)}
+                className="text-blue-400 hover:text-blue-300 text-sm"
+              >
+                Paste your petition evidence
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Assume Evidence Exists Toggle */}
-      <div className="px-4 py-3 border-t border-gray-700">
-        <button
-          onClick={() => setAssumeEvidenceExists(!assumeEvidenceExists)}
-          className="flex items-center gap-3 w-full text-left"
-        >
-          {assumeEvidenceExists ? (
-            <ToggleRight className="w-6 h-6 text-emerald-400" />
-          ) : (
-            <ToggleLeft className="w-6 h-6 text-gray-500" />
-          )}
-          <div>
-            <span className={`text-sm font-medium ${assumeEvidenceExists ? 'text-emerald-400' : 'text-gray-400'}`}>
-              Trust referenced exhibits
-            </span>
-            <p className="text-xs text-gray-500">
-              {assumeEvidenceExists
-                ? 'ON: AI will assume all referenced exhibits exist and are properly attached'
-                : 'OFF: Upload exhibits below for AI to analyze their content'}
-            </p>
-          </div>
-        </button>
-      </div>
+      {!isCollapsed && (
+        <div className="px-4 py-3 border-t border-gray-700">
+          <button
+            onClick={() => setAssumeEvidenceExists(!assumeEvidenceExists)}
+            className="flex items-center gap-3 w-full text-left"
+          >
+            {assumeEvidenceExists ? (
+              <ToggleRight className="w-6 h-6 text-emerald-400" />
+            ) : (
+              <ToggleLeft className="w-6 h-6 text-gray-500" />
+            )}
+            <div>
+              <span className={`text-sm font-medium ${assumeEvidenceExists ? 'text-emerald-400' : 'text-gray-400'}`}>
+                Trust referenced exhibits
+              </span>
+              <p className="text-xs text-gray-500">
+                {assumeEvidenceExists
+                  ? 'ON: AI will assume all referenced exhibits exist and are properly attached'
+                  : 'OFF: Upload exhibits below for AI to analyze their content'}
+              </p>
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* Exhibits Section */}
-      {!assumeEvidenceExists && (
+      {!isCollapsed && !assumeEvidenceExists && (
         <div className="px-4 py-3 border-t border-gray-700">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-medium text-gray-300 flex items-center gap-2">
@@ -270,7 +288,7 @@ The feature in TechBullion constitutes compelling evidence that published materi
         </div>
       )}
 
-      {localContent && (
+      {!isCollapsed && localContent && (
         <div className="px-4 pb-4 pt-2 border-t border-gray-700">
           <p className="text-xs text-gray-500">
             {assumeEvidenceExists

@@ -138,10 +138,7 @@ JSON Response:`;
         userPrompt
       );
 
-      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Failed to parse Claude Opus 4.5 response');
-
-      const gradeResult: SingleGradeResponse = JSON.parse(jsonMatch[0]);
+      const gradeResult = parseJsonResponse(textContent);
       validateGrade(gradeResult);
 
       return { model: 'claude-opus-4-5', modelName: 'Claude Opus 4.5', ...gradeResult };
@@ -155,10 +152,7 @@ JSON Response:`;
         userPrompt
       );
 
-      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Failed to parse Gemma response');
-
-      const gradeResult: SingleGradeResponse = JSON.parse(jsonMatch[0]);
+      const gradeResult = parseJsonResponse(textContent);
       validateGrade(gradeResult);
 
       return { model: 'gemma-3-12b', modelName: 'Google Gemma 3 12B', ...gradeResult };
@@ -172,10 +166,7 @@ JSON Response:`;
         userPrompt
       );
 
-      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Failed to parse DeepSeek response');
-
-      const gradeResult: SingleGradeResponse = JSON.parse(jsonMatch[0]);
+      const gradeResult = parseJsonResponse(textContent);
       validateGrade(gradeResult);
 
       return { model: 'deepseek-r1', modelName: 'DeepSeek R1', ...gradeResult };
@@ -189,10 +180,7 @@ JSON Response:`;
         userPrompt
       );
 
-      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Failed to parse Mistral response');
-
-      const gradeResult: SingleGradeResponse = JSON.parse(jsonMatch[0]);
+      const gradeResult = parseJsonResponse(textContent);
       validateGrade(gradeResult);
 
       return { model: 'mistral-large-3', modelName: 'Mistral Large 3', ...gradeResult };
@@ -206,10 +194,7 @@ JSON Response:`;
         userPrompt
       );
 
-      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Failed to parse Llama response');
-
-      const gradeResult: SingleGradeResponse = JSON.parse(jsonMatch[0]);
+      const gradeResult = parseJsonResponse(textContent);
       validateGrade(gradeResult);
 
       return { model: 'llama4-maverick', modelName: 'Meta Llama 4 Maverick', ...gradeResult };
@@ -223,13 +208,24 @@ JSON Response:`;
         userPrompt
       );
 
-      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Failed to parse Qwen response');
-
-      const gradeResult: SingleGradeResponse = JSON.parse(jsonMatch[0]);
+      const gradeResult = parseJsonResponse(textContent);
       validateGrade(gradeResult);
 
       return { model: 'qwen3-235b', modelName: 'Qwen3 235B', ...gradeResult };
+    }
+
+    function parseJsonResponse(text: string): SingleGradeResponse {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('No JSON found in response');
+
+      // Clean control characters from JSON string
+      const cleanedJson = jsonMatch[0]
+        .replace(/[\x00-\x1F\x7F]/g, ' ') // Replace control chars with space
+        .replace(/\n/g, ' ')
+        .replace(/\r/g, ' ')
+        .replace(/\t/g, ' ');
+
+      return JSON.parse(cleanedJson);
     }
 
     function validateGrade(result: SingleGradeResponse) {
