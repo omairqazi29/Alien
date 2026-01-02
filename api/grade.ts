@@ -164,6 +164,23 @@ JSON Response:`;
       return { model: 'claude-3-5-sonnet', modelName: 'Claude 3.5 Sonnet', ...gradeResult };
     }
 
+    // Grade with Claude Opus 4.5 via Bedrock (using cross-region inference profile)
+    async function gradeWithClaudeOpus45(): Promise<SingleGradeResponse & { model: string; modelName: string }> {
+      const textContent = await callBedrockConverse(
+        'us.anthropic.claude-opus-4-5-20251101-v1:0',
+        SYSTEM_PROMPT,
+        userPrompt
+      );
+
+      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('Failed to parse Claude Opus 4.5 response');
+
+      const gradeResult: SingleGradeResponse = JSON.parse(jsonMatch[0]);
+      validateGrade(gradeResult);
+
+      return { model: 'claude-opus-4-5', modelName: 'Claude Opus 4.5', ...gradeResult };
+    }
+
     function validateGrade(result: SingleGradeResponse) {
       if (!['strong', 'moderate', 'weak', 'insufficient'].includes(result.grade)) {
         result.grade = 'moderate';
@@ -174,12 +191,13 @@ JSON Response:`;
     }
 
     // Run all models in parallel
-    const [sonnet35Grade, llamaGrade] = await Promise.all([
+    const [opus45Grade, sonnet35Grade, llamaGrade] = await Promise.all([
+      gradeWithClaudeOpus45(),
       gradeWithClaudeSonnet35(),
       gradeWithLlama(),
     ]);
 
-    return res.status(200).json({ grades: [sonnet35Grade, llamaGrade] });
+    return res.status(200).json({ grades: [opus45Grade, sonnet35Grade, llamaGrade] });
   } catch (error) {
     console.error('Grading error:', error);
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
