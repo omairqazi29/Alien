@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
-import { Sparkles, AlertTriangle, CheckCircle, XCircle, HelpCircle, Loader2 } from 'lucide-react';
-import { gradeEvidenceStream } from '../lib/ai';
+import { Sparkles, AlertTriangle, CheckCircle, XCircle, HelpCircle, Loader2, RefreshCw } from 'lucide-react';
+import { gradeEvidenceStream, retryFailedModel } from '../lib/ai';
 import { useCriteriaPolicy, useAssumeEvidenceExists, useExhibits } from '../hooks/useData';
 import { Button, Alert, Card } from './ui';
 import type { AIGrade, CriteriaId, GradeLevel, ModelGrade } from '../types';
@@ -96,6 +96,8 @@ export function AIGrader({ criteriaId, evidenceContent, existingGrade, onGrade }
   const [streamingGrades, setStreamingGrades] = useState<ModelGrade[]>([]);
   const [averageGrade, setAverageGrade] = useState<ModelGrade | null>(null);
   const [gradingProgress, setGradingProgress] = useState({ completed: 0, total: 6 });
+  const [failedModels, setFailedModels] = useState<string[]>([]);
+  const [retryingModels, setRetryingModels] = useState<Set<string>>(new Set());
   const { policyDetails } = useCriteriaPolicy(criteriaId);
   const { assumeExists } = useAssumeEvidenceExists(criteriaId);
   const { exhibits } = useExhibits(criteriaId);
@@ -111,6 +113,8 @@ export function AIGrader({ criteriaId, evidenceContent, existingGrade, onGrade }
     setStreamingGrades([]);
     setAverageGrade(null);
     setGradingProgress({ completed: 0, total: 6 });
+    setFailedModels([]);
+    setRetryingModels(new Set());
 
     // Build exhibits content from extracted text (only when not assuming exhibits exist)
     let exhibitsContent = '';
@@ -136,8 +140,12 @@ export function AIGrader({ criteriaId, evidenceContent, existingGrade, onGrade }
           setAverageGrade(grade);
           setGradingProgress({ completed, total });
         },
-        onDone: () => {
+        onModelError: (modelName) => {
+          setFailedModels(prev => [...prev, modelName]);
+        },
+        onDone: (_completedCount, failed) => {
           setIsGrading(false);
+          setFailedModels(failed);
           // Save final grade
           setStreamingGrades(grades => {
             setAverageGrade(avg => {
@@ -162,6 +170,79 @@ export function AIGrader({ criteriaId, evidenceContent, existingGrade, onGrade }
         },
       }
     );
+  }, [criteriaId, evidenceContent, policyDetails, assumeExists, exhibits, onGrade]);
+
+  const handleRetryModel = useCallback(async (modelName: string) => {
+    setRetryingModels(prev => new Set(prev).add(modelName));
+
+    // Build exhibits content
+    let exhibitsContent = '';
+    if (!assumeExists && exhibits.length > 0) {
+      const exhibitTexts = exhibits
+        .filter(e => e.extracted_text)
+        .map(e => `[Exhibit ${e.label}: ${e.file_name}]\n${e.extracted_text}`)
+        .join('\n\n---\n\n');
+      exhibitsContent = exhibitTexts;
+    }
+
+    try {
+      const grade = await retryFailedModel(
+        criteriaId,
+        evidenceContent,
+        policyDetails,
+        assumeExists,
+        exhibitsContent,
+        modelName
+      );
+
+      // Add the new grade to streaming grades
+      setStreamingGrades(prev => [...prev, grade]);
+
+      // Remove from failed models
+      setFailedModels(prev => prev.filter(m => m !== modelName));
+
+      // Recalculate average
+      setStreamingGrades(grades => {
+        const allGrades = [...grades];
+        const avgScore = Math.round(allGrades.reduce((sum, g) => sum + g.score, 0) / allGrades.length);
+        const gradeFromScore = (score: number): 'strong' | 'moderate' | 'weak' | 'insufficient' => {
+          if (score >= 75) return 'strong';
+          if (score >= 50) return 'moderate';
+          if (score >= 25) return 'weak';
+          return 'insufficient';
+        };
+
+        const newAverage: ModelGrade = {
+          model: 'average',
+          modelName: 'Average',
+          grade: gradeFromScore(avgScore),
+          score: avgScore,
+          feedback: `Average score across ${allGrades.length} models.`,
+          suggestions: [],
+        };
+        setAverageGrade(newAverage);
+
+        // Update saved grade
+        const aiGrade: AIGrade = {
+          id: `grade-${criteriaId}-${Date.now()}`,
+          criteria_id: criteriaId,
+          grades: [newAverage, ...allGrades],
+          graded_at: new Date().toISOString(),
+        };
+        onGrade(aiGrade);
+
+        return grades;
+      });
+    } catch (err) {
+      console.error(`Retry failed for ${modelName}:`, err);
+      setError(`Retry failed for ${modelName}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setRetryingModels(prev => {
+        const next = new Set(prev);
+        next.delete(modelName);
+        return next;
+      });
+    }
   }, [criteriaId, evidenceContent, policyDetails, assumeExists, exhibits, onGrade]);
 
   // Use streaming grades while grading, otherwise use existing grade
@@ -207,7 +288,37 @@ export function AIGrader({ criteriaId, evidenceContent, existingGrade, onGrade }
           {isGrading && (
             <div className="flex items-center gap-2 text-sm text-gray-400">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Grading with {gradingProgress.completed}/{gradingProgress.total} models...</span>
+              <span>
+                Grading with {gradingProgress.completed}/{gradingProgress.total} models
+                {failedModels.length > 0 && ` (${failedModels.length} failed)`}...
+              </span>
+            </div>
+          )}
+
+          {/* Failed models with retry buttons */}
+          {!isGrading && failedModels.length > 0 && (
+            <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
+              <div className="text-xs text-orange-400 flex items-center gap-1 mb-2">
+                <AlertTriangle className="w-3 h-3" />
+                <span>{failedModels.length} model{failedModels.length > 1 ? 's' : ''} failed</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {failedModels.map(modelName => (
+                  <button
+                    key={modelName}
+                    onClick={() => handleRetryModel(modelName)}
+                    disabled={retryingModels.has(modelName)}
+                    className="flex items-center gap-1.5 px-2 py-1 bg-orange-600/20 text-orange-300 rounded text-xs hover:bg-orange-600/30 transition-colors disabled:opacity-50"
+                  >
+                    {retryingModels.has(modelName) ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-3 h-3" />
+                    )}
+                    {retryingModels.has(modelName) ? 'Retrying...' : `Retry ${modelName}`}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

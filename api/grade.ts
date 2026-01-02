@@ -205,17 +205,60 @@ JSON Response:`;
     }
 
     function parseJsonResponse(text: string): SingleGradeResponse {
+      if (!text || text.trim() === '') {
+        throw new Error('Empty response from model');
+      }
+
+      // Try to find JSON object in the response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('No JSON found in response');
+      if (!jsonMatch) {
+        // Try to extract data from plain text response
+        const gradeMatch = text.match(/grade["\s:]+["']?(strong|moderate|weak|insufficient)["']?/i);
+        const scoreMatch = text.match(/score["\s:]+(\d+)/i);
+
+        if (gradeMatch || scoreMatch) {
+          return {
+            grade: (gradeMatch?.[1]?.toLowerCase() as 'strong' | 'moderate' | 'weak' | 'insufficient') || 'moderate',
+            score: scoreMatch ? parseInt(scoreMatch[1], 10) : 50,
+            feedback: 'Response parsed from non-JSON format.',
+            suggestions: [],
+          };
+        }
+        throw new Error('No JSON found in response');
+      }
 
       // Clean control characters from JSON string
-      const cleanedJson = jsonMatch[0]
+      let cleanedJson = jsonMatch[0]
         .replace(/[\x00-\x1F\x7F]/g, ' ') // Replace control chars with space
         .replace(/\n/g, ' ')
         .replace(/\r/g, ' ')
         .replace(/\t/g, ' ');
 
-      return JSON.parse(cleanedJson);
+      // Fix common JSON issues
+      // Remove trailing commas before ] or }
+      cleanedJson = cleanedJson.replace(/,\s*([}\]])/g, '$1');
+      // Fix unescaped quotes in strings (basic attempt)
+      cleanedJson = cleanedJson.replace(/([^\\])"\s*([^,}\]:])/g, '$1\\"$2');
+
+      try {
+        return JSON.parse(cleanedJson);
+      } catch (parseError) {
+        // Try to extract fields manually if JSON parsing fails
+        const gradeMatch = cleanedJson.match(/"grade"\s*:\s*"(strong|moderate|weak|insufficient)"/i);
+        const scoreMatch = cleanedJson.match(/"score"\s*:\s*(\d+)/);
+        const feedbackMatch = cleanedJson.match(/"feedback"\s*:\s*"([^"]+)"/);
+
+        if (gradeMatch && scoreMatch) {
+          return {
+            grade: gradeMatch[1].toLowerCase() as 'strong' | 'moderate' | 'weak' | 'insufficient',
+            score: parseInt(scoreMatch[1], 10),
+            feedback: feedbackMatch?.[1] || 'Feedback parsing failed.',
+            suggestions: [],
+          };
+        }
+
+        throw new Error(`JSON parse failed: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+      }
     }
 
     function validateGrade(result: SingleGradeResponse) {
@@ -240,6 +283,8 @@ JSON Response:`;
     };
 
     const completedGrades: (SingleGradeResponse & { model: string; modelName: string })[] = [];
+    const failedModels: string[] = [];
+    const totalModels = 6;
 
     // Send individual grade as SSE event
     const sendGrade = (grade: SingleGradeResponse & { model: string; modelName: string }) => {
@@ -256,23 +301,30 @@ JSON Response:`;
         feedback: `Average score across ${completedGrades.length} model${completedGrades.length > 1 ? 's' : ''}.`,
         suggestions: [],
       };
-      res.write(`data: ${JSON.stringify({ type: 'average', grade: averageGrade, totalModels: 6 })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'average', grade: averageGrade, totalModels, completedCount: completedGrades.length, failedCount: failedModels.length })}\n\n`);
+    };
+
+    // Send error event for failed model
+    const sendError = (modelName: string, error: Error) => {
+      console.error(`${modelName} error:`, error.message);
+      failedModels.push(modelName);
+      res.write(`data: ${JSON.stringify({ type: 'error', modelName, error: error.message, failedCount: failedModels.length, totalModels })}\n\n`);
     };
 
     // Run all models in parallel, streaming results as they complete
     const modelPromises = [
-      gradeWithClaudeOpus45().then(sendGrade).catch(e => console.error('Claude Opus 4.5 error:', e)),
-      gradeWithGemma().then(sendGrade).catch(e => console.error('Gemma error:', e)),
-      gradeWithDeepSeek().then(sendGrade).catch(e => console.error('DeepSeek error:', e)),
-      gradeWithMistral().then(sendGrade).catch(e => console.error('Mistral error:', e)),
-      gradeWithLlama().then(sendGrade).catch(e => console.error('Llama error:', e)),
-      gradeWithQwen().then(sendGrade).catch(e => console.error('Qwen error:', e)),
+      gradeWithClaudeOpus45().then(sendGrade).catch(e => sendError('Claude Opus 4.5', e)),
+      gradeWithGemma().then(sendGrade).catch(e => sendError('Google Gemma 3 12B', e)),
+      gradeWithDeepSeek().then(sendGrade).catch(e => sendError('DeepSeek R1', e)),
+      gradeWithMistral().then(sendGrade).catch(e => sendError('Mistral Large 3', e)),
+      gradeWithLlama().then(sendGrade).catch(e => sendError('Meta Llama 4 Maverick', e)),
+      gradeWithQwen().then(sendGrade).catch(e => sendError('Qwen3 235B', e)),
     ];
 
     await Promise.all(modelPromises);
 
-    // Send completion event
-    res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
+    // Send completion event with summary
+    res.write(`data: ${JSON.stringify({ type: 'done', completedCount: completedGrades.length, failedCount: failedModels.length, failedModels })}\n\n`);
     res.end();
   } catch (error) {
     console.error('Grading error:', error);

@@ -17,16 +17,61 @@ interface ExtractTextResponse {
 }
 
 interface GradeStreamEvent {
-  type: 'grade' | 'average' | 'done';
+  type: 'grade' | 'average' | 'done' | 'error';
   grade?: ModelGrade;
   totalModels?: number;
+  completedCount?: number;
+  failedCount?: number;
+  failedModels?: string[];
+  modelName?: string;
+  error?: string;
 }
 
 export interface GradeStreamCallbacks {
   onGrade: (grade: ModelGrade) => void;
   onAverage: (grade: ModelGrade, completedCount: number, totalModels: number) => void;
-  onDone: () => void;
+  onModelError: (modelName: string, error: string) => void;
+  onDone: (completedCount: number, failedModels: string[]) => void;
   onError: (error: Error) => void;
+}
+
+export async function retryFailedModel(
+  criteriaId: CriteriaId,
+  evidenceContent: string,
+  policyDetails: string,
+  assumeEvidenceExists: boolean,
+  exhibitsContent: string,
+  modelName: string
+): Promise<ModelGrade> {
+  const criteria = EB1A_CRITERIA.find(c => c.id === criteriaId);
+
+  if (!criteria) {
+    throw new Error(`Unknown criteria: ${criteriaId}`);
+  }
+
+  const response = await fetch('/api/grade-single', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      criteriaId,
+      officialTitle: criteria.officialTitle,
+      policyDetails,
+      evidenceContent,
+      exhibitsContent,
+      assumeEvidenceExists,
+      modelName,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.details || error.error || 'Failed to grade evidence');
+  }
+
+  const data = await response.json();
+  return data.grade;
 }
 
 export async function gradeEvidenceStream(
@@ -97,8 +142,10 @@ export async function gradeEvidenceStream(
               callbacks.onGrade(event.grade);
             } else if (event.type === 'average' && event.grade) {
               callbacks.onAverage(event.grade, completedCount, event.totalModels || 6);
+            } else if (event.type === 'error' && event.modelName) {
+              callbacks.onModelError(event.modelName, event.error || 'Unknown error');
             } else if (event.type === 'done') {
-              callbacks.onDone();
+              callbacks.onDone(event.completedCount || completedCount, event.failedModels || []);
             }
           } catch (e) {
             console.error('Failed to parse SSE event:', line, e);
